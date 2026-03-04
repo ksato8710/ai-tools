@@ -1,26 +1,53 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --color-cream: #FAFAF5;
+  --color-card: #F0EDE6;
+  --color-card-hover: #E8E4DC;
+  --color-accent-leaf: #6B8F71;
+  --color-accent-leaf-hover: #5A7A5F;
+  --color-accent-bark: #8B7355;
+  --color-accent-bark-hover: #7A6248;
+  --color-text-primary: #2C2C2C;
+  --color-text-secondary: #6B6B6B;
+  --color-text-muted: #9B9B8F;
+  --color-border: #D4D0C8;
+  --color-border-light: #E8E4DC;
+  --color-shadow: rgba(107, 143, 113, 0.08);
+  --color-white: #FFFFFF;
+  --color-error: #C75C5C;
+  --color-success: #6B8F71;
+  --color-warning: #D4A854;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-cream: var(--color-cream);
+  --color-card: var(--color-card);
+  --color-card-hover: var(--color-card-hover);
+  --color-accent-leaf: var(--color-accent-leaf);
+  --color-accent-leaf-hover: var(--color-accent-leaf-hover);
+  --color-accent-bark: var(--color-accent-bark);
+  --color-accent-bark-hover: var(--color-accent-bark-hover);
+  --color-text-primary: var(--color-text-primary);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-muted: var(--color-text-muted);
+  --color-border: var(--color-border);
+  --color-border-light: var(--color-border-light);
+  --color-shadow: var(--color-shadow);
+  --color-surface: var(--color-white);
+  --color-error: var(--color-error);
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --font-sans: var(--font-dm-sans);
+  --font-heading: var(--font-nunito);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-cream);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans, 'DM Sans', sans-serif);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading, 'Nunito', sans-serif);
 }

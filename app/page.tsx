@@ -1,65 +1,76 @@
-import Image from "next/image";
+import Header from "@/components/layout/Header";
+import ToolCard from "@/components/layout/ToolCard";
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="min-h-screen bg-cream">
+      <Header />
+      <main className="max-w-5xl mx-auto px-6 py-16">
+        <div className="text-center mb-12">
+          <h1 className="font-[family-name:var(--font-nunito)] text-4xl font-extrabold text-text-primary mb-3">
+            AI Tools Suite
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="text-text-secondary text-lg max-w-xl mx-auto">
+            AIを活用したシンプルなツール群。設計・プレゼン・評価をもっと効率的に。
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <ToolCard
+            title="ER Diagram"
+            description="自然言語からER図を自動生成。エンティティ・リレーションの追加・編集も直感的に。"
+            icon={<ERIcon />}
+            href="/er-diagram"
+            category="Database"
+          />
+          <ToolCard
+            title="Presentation Slides"
+            description="テキストからプレゼンスライドを自動生成。構成・デザインもAIがサポート。"
+            icon={<SlidesIcon />}
+            comingSoon
+            category="Presentation"
+          />
+          <ToolCard
+            title="Heuristic Evaluation"
+            description="UIスクリーンショットからヒューリスティック評価を自動実行。改善提案も。"
+            icon={<EvalIcon />}
+            comingSoon
+            category="UX / UI"
+          />
         </div>
       </main>
     </div>
+  );
+}
+
+function ERIcon() {
+  return (
+    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+      <rect x="2" y="4" width="12" height="10" rx="2" stroke="currentColor" strokeWidth="2" />
+      <rect x="18" y="18" width="12" height="10" rx="2" stroke="currentColor" strokeWidth="2" />
+      <path d="M14 9h4v0a5 5 0 0 1 5 5v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <circle cx="8" cy="8" r="1" fill="currentColor" />
+      <circle cx="24" cy="22" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
+function SlidesIcon() {
+  return (
+    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+      <rect x="4" y="6" width="24" height="18" rx="2" stroke="currentColor" strokeWidth="2" />
+      <line x1="10" y1="12" x2="22" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <line x1="10" y1="17" x2="18" y2="17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <line x1="14" y1="24" x2="18" y2="28" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function EvalIcon() {
+  return (
+    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+      <path d="M8 28V4l8 6 8-6v24l-8-6-8 6z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M13 14l2 2 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
