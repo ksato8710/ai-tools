@@ -5,6 +5,7 @@ import { readdir, readFile, writeFile, unlink, mkdir } from "fs/promises";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { parseMermaidER } from "./mermaid-parser.js";
+import { reverseEngineerPostgres } from "./db-reverse-engineer.js";
 import type { Entity, Relation, ERDiagram } from "../lib/er-schema.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -263,6 +264,77 @@ server.tool(
       return {
         content: [
           { type: "text" as const, text: JSON.stringify({ error: `Diagram '${id}' not found` }) },
+        ],
+        isError: true,
+      };
+    }
+  }
+);
+
+// Tool 6: reverse_engineer_db
+server.tool(
+  "reverse_engineer_db",
+  `Reverse-engineer a PostgreSQL database schema into an ER diagram.
+Connects to the database, reads information_schema + pg_enum, and saves the result.`,
+  {
+    connectionString: z.string().describe("PostgreSQL connection string (e.g. postgresql://user:pass@host:5432/db)"),
+    name: z.string().describe("Diagram name"),
+    schema: z.string().optional().describe('Database schema to inspect (default: "public")'),
+    excludeTables: z
+      .string()
+      .optional()
+      .describe("Comma-separated list of tables to exclude"),
+  },
+  async ({ connectionString, name, schema, excludeTables }) => {
+    await ensureDiagramsDir();
+
+    try {
+      const exclude = excludeTables
+        ? excludeTables.split(",").map((t) => t.trim()).filter(Boolean)
+        : undefined;
+
+      const diagram = await reverseEngineerPostgres(connectionString, {
+        schema: schema ?? "public",
+        excludeTables: exclude,
+      });
+
+      diagram.name = name;
+      const id = generateId();
+      diagram.id = id;
+      diagram.updatedAt = new Date().toISOString();
+
+      const filePath = join(DIAGRAMS_DIR, `${id}.json`);
+      await writeFile(filePath, JSON.stringify(diagram, null, 2));
+
+      // Count enum attributes
+      const enumCount = diagram.entities.reduce(
+        (sum, e) => sum + e.attributes.filter((a) => a.type === "ENUM").length,
+        0
+      );
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({
+              id,
+              name: diagram.name,
+              entityCount: diagram.entities.length,
+              relationCount: diagram.relations.length,
+              enumAttributeCount: enumCount,
+              filePath,
+            }),
+          },
+        ],
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({ error: `DB reverse engineering failed: ${message}` }),
+          },
         ],
         isError: true,
       };
