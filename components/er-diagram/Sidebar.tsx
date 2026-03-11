@@ -10,6 +10,8 @@ interface SidebarProps {
   onSelectEntity: (id: string) => void;
   onAddEntity: (name: string) => void;
   onDeleteEntity: (id: string) => void;
+  hiddenEntityIds: Set<string>;
+  onToggleVisibility: (id: string) => void;
 }
 
 export default function Sidebar({
@@ -18,6 +20,8 @@ export default function Sidebar({
   onSelectEntity,
   onAddEntity,
   onDeleteEntity,
+  hiddenEntityIds,
+  onToggleVisibility,
 }: SidebarProps) {
   const [newName, setNewName] = useState("");
   const [isAdding, setIsAdding] = useState(false);
@@ -75,32 +79,62 @@ export default function Sidebar({
             Click + to add one.
           </div>
         ) : (
-          entities.map((entity) => (
-            <div
-              key={entity.id}
-              className={`
-                group flex items-center justify-between px-4 py-2.5 cursor-pointer transition-colors border-b border-border-light
-                ${selectedEntityId === entity.id ? "bg-accent-leaf/10 border-l-2 border-l-accent-leaf" : "hover:bg-card"}
-              `}
-              onClick={() => onSelectEntity(entity.id)}
-            >
-              <div>
-                <div className="text-sm font-medium text-text-primary">{entity.name}</div>
-                <div className="text-[11px] text-text-muted">
-                  {entity.attributes.length} attribute{entity.attributes.length !== 1 ? "s" : ""}
+          entities.map((entity) => {
+            const isHidden = hiddenEntityIds.has(entity.id);
+            return (
+              <div
+                key={entity.id}
+                className={`
+                  group flex items-center justify-between px-4 py-2.5 cursor-pointer transition-colors border-b border-border-light
+                  ${selectedEntityId === entity.id ? "bg-accent-leaf/10 border-l-2 border-l-accent-leaf" : "hover:bg-card"}
+                  ${isHidden ? "opacity-50" : ""}
+                `}
+                onClick={() => onSelectEntity(entity.id)}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-text-primary truncate">{entity.name}</div>
+                  <div className="text-[11px] text-text-muted">
+                    {entity.attributes.length} attribute{entity.attributes.length !== 1 ? "s" : ""}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onToggleVisibility(entity.id); }}
+                    className="opacity-0 group-hover:opacity-100 text-text-muted hover:text-text-primary transition-all cursor-pointer p-0.5"
+                    title={isHidden ? "Show entity" : "Hide entity"}
+                  >
+                    {isHidden ? <EyeOffIcon /> : <EyeIcon />}
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onDeleteEntity(entity.id); }}
+                    className="opacity-0 group-hover:opacity-100 text-text-muted hover:text-error transition-all text-xs cursor-pointer"
+                    title="Delete entity"
+                  >
+                    ✕
+                  </button>
                 </div>
               </div>
-              <button
-                onClick={(e) => { e.stopPropagation(); onDeleteEntity(entity.id); }}
-                className="opacity-0 group-hover:opacity-100 text-text-muted hover:text-error transition-all text-xs cursor-pointer"
-                title="Delete entity"
-              >
-                ✕
-              </button>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </aside>
+  );
+}
+
+function EyeIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+function EyeOffIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M1 1l12 12M5.6 5.6a2 2 0 002.8 2.8M1 7s2.5-4 6-4c.9 0 1.7.2 2.4.5M13 7s-1.2 1.9-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }

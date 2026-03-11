@@ -15,6 +15,8 @@ interface ToolbarProps {
   saving?: boolean;
   aiOpen: boolean;
   enumsOpen: boolean;
+  hiddenCount: number;
+  onShowAll: () => void;
 }
 
 export default function Toolbar({
@@ -29,6 +31,8 @@ export default function Toolbar({
   saving,
   aiOpen,
   enumsOpen,
+  hiddenCount,
+  onShowAll,
 }: ToolbarProps) {
   const handleImportClick = () => {
     const input = document.createElement("input");
@@ -78,6 +82,11 @@ export default function Toolbar({
         <Button size="sm" variant="ghost" onClick={onExport}>
           <ExportIcon /> Export
         </Button>
+        {hiddenCount > 0 && (
+          <Button size="sm" variant="secondary" onClick={onShowAll}>
+            <EyeIcon /> Show All ({hiddenCount} hidden)
+          </Button>
+        )}
         <Button
           size="sm"
           variant={enumsOpen ? "primary" : "secondary"}
@@ -126,6 +135,15 @@ function ExportIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
       <path d="M7 9V1M3 5l4-4 4 4M2 12h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function EyeIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.5" />
     </svg>
   );
 }

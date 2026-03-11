@@ -31,6 +31,7 @@ export interface ERDiagram {
   entities: Entity[];
   relations: Relation[];
   layout: { [entityId: string]: { x: number; y: number } };
+  hiddenEntityIds?: string[];
 }
 
 export const SQL_TYPES = [

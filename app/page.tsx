@@ -24,11 +24,25 @@ export default function Home() {
             category="Database"
           />
           <ToolCard
+            title="Variant UI"
+            description="AIエージェントが生成したUIバリエーションを無限スクロールで閲覧・比較・選択。"
+            icon={<VariantIcon />}
+            href="/variant-ui"
+            category="UX / UI"
+          />
+          <ToolCard
             title="Presentation Slides"
             description="テキストからプレゼンスライドを自動生成。構成・デザインもAIがサポート。"
             icon={<SlidesIcon />}
             comingSoon
             category="Presentation"
+          />
+          <ToolCard
+            title="App Inspector"
+            description="Android端末の他アプリを自動操作し、スクリーンショットとUI構造を一括取得・分析。"
+            icon={<InspectorIcon />}
+            href="/app-inspector"
+            category="Mobile"
           />
           <ToolCard
             title="Heuristic Evaluation"
@@ -62,6 +76,28 @@ function SlidesIcon() {
       <line x1="10" y1="12" x2="22" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       <line x1="10" y1="17" x2="18" y2="17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       <line x1="14" y1="24" x2="18" y2="28" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function VariantIcon() {
+  return (
+    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+      <rect x="3" y="4" width="10" height="12" rx="2" stroke="currentColor" strokeWidth="2" />
+      <rect x="19" y="4" width="10" height="12" rx="2" stroke="currentColor" strokeWidth="2" />
+      <rect x="11" y="16" width="10" height="12" rx="2" stroke="currentColor" strokeWidth="2" />
+      <path d="M8 8h0M24 8h0M16 20h0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function InspectorIcon() {
+  return (
+    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+      <rect x="9" y="3" width="14" height="26" rx="3" stroke="currentColor" strokeWidth="2" />
+      <line x1="13" y1="25" x2="19" y2="25" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <circle cx="16" cy="14" r="4" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M19 17l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );
 }

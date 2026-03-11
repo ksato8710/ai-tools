@@ -25,6 +25,9 @@ export default function Header() {
           <NavLink href="/er-diagram" active={pathname === "/er-diagram"}>
             ER Diagram
           </NavLink>
+          <NavLink href="/variant-ui" active={pathname === "/variant-ui"}>
+            Variant UI
+          </NavLink>
         </nav>
       </div>
     </header>

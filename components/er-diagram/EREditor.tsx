@@ -47,6 +47,7 @@ export default function EREditor() {
   const [currentDiagramId, setCurrentDiagramId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [hiddenEntityIds, setHiddenEntityIds] = useState<Set<string>>(new Set());
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
 
   const selectedEntity = entities.find((e) => e.id === selectedEntityId) ?? null;
@@ -187,6 +188,7 @@ export default function EREditor() {
       entities,
       relations,
       layout,
+      hiddenEntityIds: hiddenEntityIds.size > 0 ? Array.from(hiddenEntityIds) : undefined,
     };
     const blob = new Blob([JSON.stringify(diagram, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -195,7 +197,7 @@ export default function EREditor() {
     a.download = `${diagramName.replace(/\s+/g, "_")}.json`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [nodes, diagramName, entities, relations]);
+  }, [nodes, diagramName, entities, relations, hiddenEntityIds]);
 
   // Import
   const handleImport = useCallback(
@@ -231,6 +233,7 @@ export default function EREditor() {
 
       setNodes(newNodes);
       setEdges(newEdges);
+      setHiddenEntityIds(new Set(diagram.hiddenEntityIds ?? []));
       setSelectedEntityId(null);
       setShowPropertyPanel(false);
       if (diagram.id) {
@@ -325,6 +328,34 @@ export default function EREditor() {
     [entities, updateNodeData]
   );
 
+  // Visibility toggle
+  const handleToggleEntityVisibility = useCallback((entityId: string) => {
+    setHiddenEntityIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(entityId)) {
+        next.delete(entityId);
+      } else {
+        next.add(entityId);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleShowAllEntities = useCallback(() => {
+    setHiddenEntityIds(new Set());
+  }, []);
+
+  // Apply hidden state to nodes and edges
+  const visibleNodes = nodes.map((n) => ({
+    ...n,
+    hidden: hiddenEntityIds.has(n.id),
+  }));
+
+  const visibleEdges = edges.map((e) => ({
+    ...e,
+    hidden: hiddenEntityIds.has(e.source) || hiddenEntityIds.has(e.target),
+  }));
+
   // Save
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -339,6 +370,7 @@ export default function EREditor() {
         entities,
         relations,
         layout,
+        hiddenEntityIds: hiddenEntityIds.size > 0 ? Array.from(hiddenEntityIds) : undefined,
       };
       if (currentDiagramId) body.id = currentDiagramId;
 
@@ -357,7 +389,7 @@ export default function EREditor() {
     } finally {
       setSaving(false);
     }
-  }, [nodes, diagramName, entities, relations, currentDiagramId]);
+  }, [nodes, diagramName, entities, relations, currentDiagramId, hiddenEntityIds]);
 
   // Load from saved
   const handleLoadDiagram = useCallback(
@@ -382,6 +414,7 @@ export default function EREditor() {
     entities,
     relations,
     layout: Object.fromEntries(nodes.map((n) => [n.id, { x: n.position.x, y: n.position.y }])),
+    hiddenEntityIds: hiddenEntityIds.size > 0 ? Array.from(hiddenEntityIds) : undefined,
   };
 
   return (
@@ -398,6 +431,8 @@ export default function EREditor() {
         saving={saving}
         aiOpen={showAIPanel}
         enumsOpen={showEnumPanel}
+        hiddenCount={hiddenEntityIds.size}
+        onShowAll={handleShowAllEntities}
       />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
@@ -406,12 +441,14 @@ export default function EREditor() {
           onSelectEntity={handleSelectEntity}
           onAddEntity={handleAddEntity}
           onDeleteEntity={handleDeleteEntity}
+          hiddenEntityIds={hiddenEntityIds}
+          onToggleVisibility={handleToggleEntityVisibility}
         />
 
         <div className="flex-1 relative" ref={reactFlowWrapper}>
           <ReactFlow
-            nodes={nodes}
-            edges={edges}
+            nodes={visibleNodes}
+            edges={visibleEdges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
