@@ -1,0 +1,140 @@
+{
+  "version": 1,
+  "lastUpdated": "2026-03-12T06:11:52.572Z",
+  "totalAnalyses": 8,
+  "screenTypePatterns": [
+    {
+      "keywords": [
+        "充電完了",
+        "開くには上にスワイプします",
+        "1221",
+        "3月12日(木)",
+        "Picsart の通知:",
+        "電話 の通知: 不在着信",
+        "IFTTT の通知:",
+        "Link の通知:",
+        "PayPay の通知:",
+        "クラシル の通知:"
+      ],
+      "elementTypes": [
+        "image",
+        "text",
+        "button",
+        "re"
+      ],
+      "screenType": "external",
+      "confidence": 0.95,
+      "occurrences": 8,
+      "lastSeen": "2026-03-12T03:31:14.692Z"
+    },
+    {
+      "keywords": [
+        "たまポン",
+        "行政P/商品券",
+        "さいコイン",
+        "さい&#10;コイン",
+        "一覧",
+        "チャージ",
+        "使う",
+        "履歴",
+        "ごみ出し&#10;カレンダー",
+        "図書館利用者&#10;カード"
+      ],
+      "elementTypes": [
+        "group",
+        "image",
+        "scroll-area",
+        "button"
+      ],
+      "screenType": "home",
+      "confidence": 0.942305,
+      "occurrences": 8,
+      "lastSeen": "2026-03-12T06:11:52.573Z"
+    },
+    {
+      "keywords": [
+        "お客様情報",
+        "送付先情報",
+        "セキュリティ",
+        "お知らせ受信設定",
+        "お問い合わせ",
+        "利用規約",
+        "プライバシーポリシー",
+        "さいコイン利用規約",
+        "ユーザーID",
+        "コピー"
+      ],
+      "elementTypes": [
+        "group",
+        "image",
+        "scroll-area",
+        "button"
+      ],
+      "screenType": "settings",
+      "confidence": 0.9454999999999999,
+      "occurrences": 3,
+      "lastSeen": "2026-03-12T06:11:52.573Z"
+    },
+    {
+      "keywords": [
+        "一覧",
+        "チャージ",
+        "使う",
+        "履歴",
+        "ごみ出し&#10;カレンダー",
+        "図書館利用者&#10;カード",
+        "市への電子申請",
+        "加盟店一覧",
+        "クーポン一覧",
+        "ホームページ"
+      ],
+      "elementTypes": [
+        "image",
+        "group",
+        "scroll-area",
+        "button"
+      ],
+      "screenType": "notification",
+      "confidence": 0.9,
+      "occurrences": 2,
+      "lastSeen": "2026-03-12T06:11:52.573Z"
+    },
+    {
+      "keywords": [
+        "戻る",
+        "機能一覧",
+        "貯める",
+        "アンケート",
+        "ギフトコード",
+        "スタンプ&#10;ラリー",
+        "使う",
+        "請求書払い"
+      ],
+      "elementTypes": [
+        "group",
+        "image",
+        "button",
+        "scroll-area"
+      ],
+      "screenType": "menu",
+      "confidence": 0.95,
+      "occurrences": 1,
+      "lastSeen": "2026-03-12T05:49:58.623Z"
+    }
+  ],
+  "navigationPatterns": [
+    {
+      "pattern": "Simple",
+      "description": "Simple",
+      "indicators": [],
+      "occurrences": 4
+    },
+    {
+      "pattern": "Tab Navigation (Bottom)",
+      "description": "Tab Navigation (Bottom)",
+      "indicators": [],
+      "occurrences": 4
+    }
+  ],
+  "appProfiles": []
+}

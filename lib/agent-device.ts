@@ -1,4 +1,4 @@
-import { execFile } from "child_process";
+import { execFile, spawn } from "child_process";
 import { promisify } from "util";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
@@ -68,12 +68,35 @@ export async function scrollDown(): Promise<void> {
   await run(["scroll", "down"], 10000);
 }
 
+export async function scrollUp(): Promise<void> {
+  await run(["scroll", "up"], 10000);
+}
+
 export async function goBack(): Promise<void> {
   await run(["back"], 5000);
 }
 
 export async function goHome(): Promise<void> {
   await run(["home"], 5000);
+}
+
+/** Get the package name of the currently focused (foreground) app */
+export async function getForegroundPackage(): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync(
+      "adb",
+      ["shell", "dumpsys", "activity", "activities"],
+      { timeout: 10000, maxBuffer: 2 * 1024 * 1024 }
+    );
+    // Look for mResumedActivity or topResumedActivity
+    const match = stdout.match(/(?:mResumedActivity|topResumedActivity).*?(\w+(?:\.\w+)+)\//);
+    if (match) return match[1];
+    // Fallback: look for ResumedActivity
+    const fallback = stdout.match(/ResumedActivity.*?(\w+(?:\.\w+)+)\//);
+    return fallback ? fallback[1] : null;
+  } catch {
+    return null;
+  }
 }
 
 export interface InstalledApp {
@@ -144,6 +167,139 @@ async function listInstalledAppsFast(
   }
 }
 
+/** Check if the device screen is on */
+export async function isScreenOn(): Promise<boolean> {
+  try {
+    const { stdout } = await execFileAsync(
+      "adb",
+      ["shell", "dumpsys", "power"],
+      { timeout: 5000, maxBuffer: 1024 * 1024 }
+    );
+    // mWakefulness=Awake means screen is on
+    // Display Power: state=ON also works
+    if (stdout.includes("mWakefulness=Awake")) return true;
+    if (stdout.includes("Display Power: state=ON")) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/** Check if the device is unlocked (keyguard not showing) */
+export async function isDeviceUnlocked(): Promise<boolean> {
+  try {
+    const { stdout } = await execFileAsync(
+      "adb",
+      ["shell", "dumpsys", "window"],
+      { timeout: 5000, maxBuffer: 2 * 1024 * 1024 }
+    );
+    // mDreamingLockscreen=false and mShowingLockscreen=false means unlocked
+    // Also check: isStatusBarKeyguard=false or mOccluded=false
+    if (stdout.includes("mShowingLockscreen=true")) return false;
+    if (stdout.includes("mDreamingLockscreen=true")) return false;
+    // On newer Android, check KeyguardController
+    if (stdout.includes("KeyguardShowing=true")) return false;
+    return true;
+  } catch {
+    return true; // Assume unlocked if check fails
+  }
+}
+
+/** Wake up the device screen (press power button) */
+export async function wakeDevice(): Promise<void> {
+  await execFileAsync("adb", ["shell", "input", "keyevent", "KEYCODE_WAKEUP"], {
+    timeout: 5000,
+  });
+}
+
+/** Dismiss lock screen by swiping up (works for swipe-to-unlock, not PIN/pattern) */
+export async function dismissLockScreen(): Promise<void> {
+  // Send MENU keyevent to dismiss simple lock screen
+  await execFileAsync("adb", ["shell", "input", "keyevent", "82"], {
+    timeout: 5000,
+  });
+  // Also try swipe up gesture (covers swipe-to-unlock)
+  await execFileAsync(
+    "adb",
+    ["shell", "input", "swipe", "540", "1800", "540", "400", "300"],
+    { timeout: 5000 }
+  );
+}
+
+export interface DeviceReadiness {
+  ready: boolean;
+  screenOn: boolean;
+  unlocked: boolean;
+  message: string;
+}
+
+/**
+ * Check device readiness and attempt to wake/unlock if needed.
+ * Returns status with instructions if manual intervention is required.
+ */
+/** Keep screen on while USB is connected + set long screen timeout */
+export async function keepScreenOn(): Promise<void> {
+  try {
+    // svc power stayon usb — screen stays on while USB connected
+    await execFileAsync("adb", ["shell", "svc", "power", "stayon", "usb"], { timeout: 5000 });
+    // Set screen timeout to 30 minutes (1800000ms) as fallback
+    await execFileAsync("adb", ["shell", "settings", "put", "system", "screen_off_timeout", "1800000"], { timeout: 5000 });
+  } catch {
+    // Best-effort; don't fail the capture if this doesn't work
+  }
+}
+
+/** Restore default screen timeout (1 minute) */
+export async function restoreScreenTimeout(): Promise<void> {
+  try {
+    await execFileAsync("adb", ["shell", "settings", "put", "system", "screen_off_timeout", "60000"], { timeout: 5000 });
+    await execFileAsync("adb", ["shell", "svc", "power", "stayon", "false"], { timeout: 5000 });
+  } catch { /* best-effort */ }
+}
+
+export async function ensureDeviceReady(): Promise<DeviceReadiness> {
+  // Step 1: Check if screen is on
+  let screenOn = await isScreenOn();
+  if (!screenOn) {
+    // Try to wake the device
+    await wakeDevice();
+    await new Promise((r) => setTimeout(r, 1000));
+    screenOn = await isScreenOn();
+    if (!screenOn) {
+      return {
+        ready: false,
+        screenOn: false,
+        unlocked: false,
+        message: "端末の画面がOFFです。電源ボタンを押して画面を点灯してください。",
+      };
+    }
+  }
+
+  // Step 2: Check if device is unlocked
+  let unlocked = await isDeviceUnlocked();
+  if (!unlocked) {
+    // Try to dismiss simple lock screen
+    await dismissLockScreen();
+    await new Promise((r) => setTimeout(r, 1500));
+    unlocked = await isDeviceUnlocked();
+    if (!unlocked) {
+      return {
+        ready: false,
+        screenOn: true,
+        unlocked: false,
+        message: "端末がロックされています。ロックを解除してから再試行してください。",
+      };
+    }
+  }
+
+  return {
+    ready: true,
+    screenOn: true,
+    unlocked: true,
+    message: "端末は準備完了です。",
+  };
+}
+
 export function parseSnapshotTree(
   raw: string
 ): { ref: string; type: string; label: string; depth: number }[] {
@@ -161,4 +317,36 @@ export function parseSnapshotTree(
     }
   }
   return elements;
+}
+
+/**
+ * Start screen recording on the device.
+ * Returns a handle with a stop() function that kills recording, pulls the file, and cleans up.
+ */
+export function startScreenRecording(outputPath: string): { stop: () => Promise<void> } {
+  const devicePath = "/sdcard/capture_recording.mp4";
+
+  // spawn adb shell screenrecord in the background
+  const proc = spawn("adb", ["shell", "screenrecord", "--time-limit", "180", devicePath], {
+    stdio: "ignore",
+    detached: false,
+  });
+
+  // Prevent unhandled error crash if process exits unexpectedly
+  proc.on("error", () => {});
+
+  return {
+    stop: async () => {
+      // Kill screenrecord on device (sends SIGINT which finalizes the mp4)
+      await execFileAsync("adb", ["shell", "pkill", "-INT", "screenrecord"], { timeout: 5000 }).catch(() => {});
+      // Wait for the recording to finalize
+      await new Promise((r) => setTimeout(r, 2000));
+      // Ensure the spawn process is dead on our side
+      try { proc.kill(); } catch { /* ignore */ }
+      // Pull the file from the device
+      await execFileAsync("adb", ["pull", devicePath, outputPath], { timeout: 30000 });
+      // Clean up on device
+      await execFileAsync("adb", ["shell", "rm", devicePath], { timeout: 5000 }).catch(() => {});
+    },
+  };
 }

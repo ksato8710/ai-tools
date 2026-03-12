@@ -9,6 +9,8 @@ export interface AppInspectorSession {
   screens: CapturedScreen[];
   summary?: AnalysisSummary;
   error?: string;
+  videoPath?: string; // path to capture recording (relative to public/)
+  captureLog?: string[]; // log of actions taken during capture
 }
 
 export interface CapturedScreen {

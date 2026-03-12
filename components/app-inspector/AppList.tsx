@@ -13,6 +13,24 @@ interface Props {
   isCapturing: boolean;
 }
 
+const CACHE_KEY_PREFIX = "app-inspector-apps-";
+
+function loadFromSessionStorage(showAll: boolean): InstalledApp[] | null {
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY_PREFIX + (showAll ? "all" : "user"));
+    if (!raw) return null;
+    return JSON.parse(raw) as InstalledApp[];
+  } catch {
+    return null;
+  }
+}
+
+function saveToSessionStorage(showAll: boolean, apps: InstalledApp[]) {
+  try {
+    sessionStorage.setItem(CACHE_KEY_PREFIX + (showAll ? "all" : "user"), JSON.stringify(apps));
+  } catch { /* ignore */ }
+}
+
 export default function AppList({ onSelect, isCapturing }: Props) {
   const [apps, setApps] = useState<InstalledApp[]>([]);
   const [loading, setLoading] = useState(false);
@@ -33,7 +51,9 @@ export default function AppList({ onSelect, isCapturing }: Props) {
       if (data.error) {
         setError(data.error);
       } else {
-        setApps(data.apps || []);
+        const fetched = data.apps || [];
+        setApps(fetched);
+        saveToSessionStorage(showAll, fetched);
         setLoaded(true);
       }
     } catch {
@@ -43,8 +63,23 @@ export default function AppList({ onSelect, isCapturing }: Props) {
     }
   };
 
+  // 初期描画: sessionStorageキャッシュがあれば即表示。なければ何もしない（取得ボタンで導線）
   useEffect(() => {
-    if (loaded) {
+    const cached = loadFromSessionStorage(showAll);
+    if (cached && cached.length > 0) {
+      setApps(cached);
+      setLoaded(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // showAll切替時はキャッシュ確認→なければ取得
+  useEffect(() => {
+    if (!loaded) return;
+    const cached = loadFromSessionStorage(showAll);
+    if (cached && cached.length > 0) {
+      setApps(cached);
+    } else {
       fetchApps();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -59,53 +94,6 @@ export default function AppList({ onSelect, isCapturing }: Props) {
         a.appName.toLowerCase().includes(q)
     );
   }, [apps, search]);
-
-  if (!loaded && !loading) {
-    return (
-      <div className="space-y-3">
-        <button
-          type="button"
-          onClick={fetchApps}
-          disabled={isCapturing}
-          className="w-full py-2.5 px-4 bg-card border border-border-light rounded-xl text-sm font-medium
-                     text-text-primary hover:bg-cream transition-colors
-                     disabled:opacity-50 disabled:cursor-not-allowed
-                     flex items-center justify-center gap-2"
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            className="shrink-0"
-          >
-            <rect
-              x="4"
-              y="2"
-              width="8"
-              height="12"
-              rx="1.5"
-              stroke="currentColor"
-              strokeWidth="1.5"
-            />
-            <line
-              x1="6"
-              y1="11"
-              x2="10"
-              y2="11"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
-          端末のアプリ一覧を取得
-        </button>
-        <p className="text-[11px] text-text-muted text-center">
-          ADB接続済みの端末からインストール済みアプリを取得します
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-3">
@@ -171,13 +159,35 @@ export default function AppList({ onSelect, isCapturing }: Props) {
         </span>
       </label>
 
-      {/* Loading state with progress hint */}
+      {/* Loading */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-8 gap-2">
           <span className="inline-block w-5 h-5 border-2 border-accent-leaf/30 border-t-accent-leaf rounded-full animate-spin" />
           <p className="text-[11px] text-text-muted">
             アプリ情報を取得中…（初回は時間がかかります）
           </p>
+        </div>
+      ) : !loaded ? (
+        /* Empty state: キャッシュなし・未取得 */
+        <div className="flex flex-col items-center py-6 gap-3">
+          <div className="w-10 h-10 bg-card rounded-xl flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="text-text-muted">
+              <rect x="5" y="2" width="10" height="16" rx="2" stroke="currentColor" strokeWidth="1.5" />
+              <line x1="8" y1="15" x2="12" y2="15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </div>
+          <p className="text-[11px] text-text-muted text-center">
+            端末に接続してアプリ一覧を取得
+          </p>
+          <button
+            type="button"
+            onClick={() => fetchApps()}
+            disabled={isCapturing}
+            className="px-4 py-2 bg-accent-leaf text-white rounded-lg text-xs font-medium
+                       hover:bg-accent-leaf-hover transition-colors disabled:opacity-50"
+          >
+            アプリ一覧を取得
+          </button>
         </div>
       ) : (
         <div className="max-h-[360px] overflow-y-auto -mx-1 px-1 space-y-1">

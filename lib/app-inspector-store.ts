@@ -1,4 +1,4 @@
-import { readdir, readFile, writeFile, mkdir } from "fs/promises";
+import { readdir, readFile, writeFile, mkdir, unlink } from "fs/promises";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import type { AppInspectorSession } from "./app-inspector-schema";
@@ -14,6 +14,15 @@ export async function ensureDirs() {
 
 function sessionPath(id: string) {
   return join(SESSIONS_DIR, `${id}.json`);
+}
+
+/** Log file path for a session (alongside the .json) */
+export function sessionLogPath(id: string) {
+  return join(SESSIONS_DIR, `${id}.log`);
+}
+
+export function getSessionsDir() {
+  return SESSIONS_DIR;
 }
 
 export async function loadSession(
@@ -51,6 +60,25 @@ export async function listSessions(): Promise<AppInspectorSession[]> {
     );
   } catch {
     return [];
+  }
+}
+
+export async function deleteSession(id: string): Promise<boolean> {
+  try {
+    const session = await loadSession(id);
+    if (!session) return false;
+
+    // Delete screenshot files
+    for (const screen of session.screens) {
+      const filename = screen.screenshotPath.replace("/app-inspector/", "");
+      try { await unlink(join(SCREENSHOTS_DIR, filename)); } catch { /* ignore */ }
+    }
+
+    // Delete session JSON
+    await unlink(sessionPath(id));
+    return true;
+  } catch {
+    return false;
   }
 }
 
