@@ -34,7 +34,7 @@ export default function Home() {
             title="Presentation Slides"
             description="テキストからプレゼンスライドを自動生成。構成・デザインもAIがサポート。"
             icon={<SlidesIcon />}
-            comingSoon
+            href="/presentation"
             category="Presentation"
           />
           <ToolCard

@@ -1,0 +1,298 @@
+import { PresentationData } from "./presentation-schema";
+
+export const alceoSamplePresentation: PresentationData = {
+  metadata: {
+    title: "Alceo - Innovation Design Partner",
+    subtitle: "ビジネス × デザイン × テクノロジーの高度融合",
+    targetAudience:
+      "デジタルトランスフォーメーションを推進する企業の経営層・事業責任者。特に金融業界を中心に、サービス開発やUX改善に課題を持つ意思決定者。",
+    purpose:
+      "Alceoの総合的なデザインコンサルティング能力と、Simplexグループのエコシステムを活かした戦略〜開発〜運用の一貫支援体制を訴求し、初回商談の設定につなげる。",
+    keyMessages: [
+      "戦略から開発・運用まで一気通貫で伴走するデザインパートナー",
+      "ビジネス・デザイン・テクノロジーの三位一体",
+      "金融業界での深い知見と実績",
+      "Simplexグループの総合力",
+    ],
+    author: "Alceo Sales Team",
+    date: "2026-03",
+  },
+  theme: {
+    primaryColor: "#0F4C81",
+    secondaryColor: "#2E86AB",
+    accentColor: "#F18F01",
+    backgroundColor: "#FFFFFF",
+    textColor: "#1B1B1B",
+  },
+  outline: [
+    {
+      id: "sec-1",
+      title: "イントロダクション",
+      points: ["会社紹介", "ミッション・ビジョン"],
+      slideIds: ["slide-1", "slide-2"],
+    },
+    {
+      id: "sec-2",
+      title: "課題提起",
+      points: [
+        "DX推進における典型的な課題",
+        "デザインの欠如がもたらすビジネスインパクト",
+      ],
+      slideIds: ["slide-3"],
+    },
+    {
+      id: "sec-3",
+      title: "Alceoのアプローチ",
+      points: [
+        "5つのサービスライン",
+        "ビジネス×デザイン×テクノロジーの融合",
+        "エビデンスベースのデザイン",
+      ],
+      slideIds: ["slide-4", "slide-5", "slide-6"],
+    },
+    {
+      id: "sec-4",
+      title: "Simplexグループの強み",
+      points: [
+        "グループ各社の専門性",
+        "戦略〜開発〜運用の一貫体制",
+      ],
+      slideIds: ["slide-7"],
+    },
+    {
+      id: "sec-5",
+      title: "体制・実績",
+      points: ["チーム構成", "7つのバリュー"],
+      slideIds: ["slide-8", "slide-9"],
+    },
+    {
+      id: "sec-6",
+      title: "クロージング",
+      points: ["次のステップ", "お問い合わせ"],
+      slideIds: ["slide-10"],
+    },
+  ],
+  slides: [
+    {
+      id: "slide-1",
+      sectionId: "sec-1",
+      layout: "title",
+      title: "Alceo",
+      subtitle: "Innovation Design Partner",
+      body: {
+        type: "title",
+        tagline: "Design the Innovation, Fly the Business, Change the Society.",
+        description:
+          "ビジネス × デザイン × テクノロジーを高度に融合し、\nイノベーションを共創するデザインパートナー",
+      },
+    },
+    {
+      id: "slide-2",
+      sectionId: "sec-1",
+      layout: "quote",
+      title: "私たちのミッション",
+      body: {
+        type: "quote",
+        quote:
+          "Useful and Beautiful — 機能性と美しさの調和を追求し、社会にインパクトのあるイノベーションをデザインする",
+        attribution: "Alceo Design Philosophy",
+        context:
+          "カワセミ（学名: Alcedo atthis）の構造色の美しさと空力学的なくちばしのフォルムが象徴する、美と機能の融合がAlceoの原点です。",
+      },
+    },
+    {
+      id: "slide-3",
+      sectionId: "sec-2",
+      layout: "bullets",
+      title: "DX推進における課題",
+      subtitle: "なぜ「デザイン」が不可欠なのか",
+      body: {
+        type: "bullets",
+        items: [
+          {
+            text: "ユーザー視点の欠如",
+            subItems: [
+              "技術先行で使われないプロダクト",
+              "リリース後の大幅な手戻り",
+            ],
+          },
+          {
+            text: "戦略とデザインの分断",
+            subItems: [
+              "ビジネス戦略がUIに反映されない",
+              "デザインが見た目の装飾に留まる",
+            ],
+          },
+          {
+            text: "継続的改善の仕組みがない",
+            subItems: [
+              "リリースして終わり",
+              "ユーザーデータに基づく改善サイクルの不在",
+            ],
+          },
+        ],
+      },
+      notes:
+        "ここで聴衆の共感を得ることが重要。具体的な事例を交えて話すと効果的。",
+    },
+    {
+      id: "slide-4",
+      sectionId: "sec-3",
+      layout: "section-divider",
+      title: "Alceoのアプローチ",
+      subtitle: "5つのサービスラインで、戦略から実装まで",
+    },
+    {
+      id: "slide-5",
+      sectionId: "sec-3",
+      layout: "two-column",
+      title: "5つのサービスライン",
+      body: {
+        type: "two-column",
+        left: {
+          heading: "戦略・企画フェーズ",
+          items: [
+            "Business & Service Design — ビジネスモデル設計、ジャーニーマップ、サービスブループリント",
+            "Brand Design — ブランドコンセプト開発、VI、Web・広告デザイン",
+            "Human Resource Development — 組織内デザイン人材の育成",
+          ],
+        },
+        right: {
+          heading: "実行・改善フェーズ",
+          items: [
+            "Digital Product & Experience Design — リサーチから開発・リリースまで9フェーズの一貫プロセス",
+            "Growth Design — AAARRフレームワークに基づく継続的なグロース支援",
+          ],
+        },
+      },
+    },
+    {
+      id: "slide-6",
+      sectionId: "sec-3",
+      layout: "stats",
+      title: "エビデンスベースのデザイン",
+      subtitle: "データと論理に基づく意思決定",
+      body: {
+        type: "stats",
+        stats: [
+          {
+            value: "9",
+            label: "フェーズ",
+            description: "リサーチからリリースまでの体系的プロセス",
+          },
+          {
+            value: "40+",
+            label: "専門人材",
+            description: "UXデザイナー、リサーチャー、UIデザイナー、PM",
+          },
+          {
+            value: "E2E",
+            label: "一気通貫",
+            description: "戦略策定から開発・運用まで",
+          },
+        ],
+        footnote:
+          "Design Research、Design Sprint、UX Audit、UX Writingなどの専門メソッドを活用",
+      },
+    },
+    {
+      id: "slide-7",
+      sectionId: "sec-4",
+      layout: "two-column",
+      title: "Simplexグループの総合力",
+      subtitle: "ビジネス × デザイン × テクノロジー × AI",
+      body: {
+        type: "two-column",
+        left: {
+          heading: "グループシナジー",
+          items: [
+            "Xspear Consulting — 経営・ビジネス戦略コンサルティング",
+            "Alceo — イノベーションデザイン",
+            "Simplex — テクノロジー・システム開発",
+            "Deep Percept — AI・機械学習",
+          ],
+        },
+        right: {
+          heading: "お客様へのメリット",
+          items: [
+            "ワンストップで戦略〜開発〜運用を支援",
+            "各領域の専門家がシームレスに連携",
+            "プロジェクト全体の一貫性を担保",
+            "技術的実現性を踏まえたデザイン提案",
+          ],
+        },
+      },
+    },
+    {
+      id: "slide-8",
+      sectionId: "sec-5",
+      layout: "bullets",
+      title: "マルチディシプリナリーチーム",
+      subtitle: "多様な専門性が融合するチーム構成",
+      body: {
+        type: "bullets",
+        items: [
+          { text: "UXデザイナー / UXリサーチャー" },
+          { text: "UIデザイナー / ビジュアルデザイナー" },
+          { text: "プロダクトマネージャー / サービスデザイナー" },
+          { text: "フロントエンドエンジニア" },
+          { text: "ブランドデザイナー / マーケター" },
+        ],
+      },
+    },
+    {
+      id: "slide-9",
+      sectionId: "sec-5",
+      layout: "bullets",
+      title: "7 Values — Alceoの行動指針",
+      body: {
+        type: "bullets",
+        items: [
+          {
+            text: "Be Sharp, Be Logical",
+            subItems: ["エビデンスに基づく無駄のない思考"],
+          },
+          {
+            text: "God is in the Details",
+            subItems: ["細部への徹底的なこだわり"],
+          },
+          {
+            text: "Mutual Respect",
+            subItems: ["多様な才能と視点の尊重"],
+          },
+          { text: "Borderless", subItems: ["職種を超えた統合チーム"] },
+          {
+            text: "Enjoy Creation",
+            subItems: ["創造を楽しむモチベーション"],
+          },
+          {
+            text: "Pounding the Rock",
+            subItems: ["粘り強く積み重ねる努力"],
+          },
+          {
+            text: "Useful and Beautiful",
+            subItems: ["機能と美の調和"],
+          },
+        ],
+      },
+    },
+    {
+      id: "slide-10",
+      sectionId: "sec-6",
+      layout: "cta",
+      title: "次のステップ",
+      body: {
+        type: "cta",
+        heading: "イノベーションを、共に。",
+        description:
+          "貴社のDX推進・サービス開発における課題について、ぜひお聞かせください。Alceoが最適なアプローチをご提案いたします。",
+        actions: [
+          "初回ヒアリング（無料・60分）のご予約",
+          "事例紹介資料のご送付",
+          "デザインスプリントのご提案",
+        ],
+        contactInfo: "https://alceo.simplex.inc/contact/",
+      },
+    },
+  ],
+};
