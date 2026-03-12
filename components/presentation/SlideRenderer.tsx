@@ -2,8 +2,8 @@
 
 import {
   Slide,
-  PresentationTheme,
-  defaultTheme,
+  DesignSystem,
+  defaultDesignSystem,
   TitleBody,
   BulletsBody,
   TwoColumnBody,
@@ -15,7 +15,7 @@ import {
 
 interface SlideRendererProps {
   slide: Slide;
-  theme?: PresentationTheme;
+  ds?: DesignSystem;
   scale?: number;
   onClick?: () => void;
   isActive?: boolean;
@@ -23,12 +23,11 @@ interface SlideRendererProps {
 
 export default function SlideRenderer({
   slide,
-  theme = defaultTheme,
+  ds = defaultDesignSystem,
   scale = 1,
   onClick,
   isActive,
 }: SlideRendererProps) {
-  const t = theme;
   const slideW = 960;
   const slideH = 540;
 
@@ -41,8 +40,8 @@ export default function SlideRenderer({
       style={{
         width: slideW * scale,
         height: slideH * scale,
-        borderRadius: 4 * scale,
-        boxShadow: "0 2px 12px rgba(0,0,0,0.10)",
+        borderRadius: (ds.radius.md / 2) * scale,
+        boxShadow: ds.shadows?.md || "0 2px 12px rgba(0,0,0,0.10)",
       }}
     >
       <div
@@ -51,142 +50,206 @@ export default function SlideRenderer({
           height: slideH,
           transform: `scale(${scale})`,
           transformOrigin: "top left",
-          fontFamily: "'Inter', 'Noto Sans JP', sans-serif",
-          background: t.backgroundColor,
-          color: t.textColor,
+          fontFamily: ds.typography.bodyFont,
+          background: ds.colors.background,
+          color: ds.colors.text,
         }}
       >
-        {renderSlideContent(slide, t)}
+        {renderSlideContent(slide, ds)}
       </div>
     </div>
   );
 }
 
-function renderSlideContent(slide: Slide, t: PresentationTheme) {
+function renderSlideContent(slide: Slide, ds: DesignSystem) {
   switch (slide.layout) {
     case "title":
-      return <TitleSlide slide={slide} theme={t} />;
+      return <TitleSlide slide={slide} ds={ds} />;
     case "section-divider":
-      return <SectionDividerSlide slide={slide} theme={t} />;
+      return <SectionDividerSlide slide={slide} ds={ds} />;
     case "bullets":
-      return <BulletsSlide slide={slide} theme={t} />;
+      return <BulletsSlide slide={slide} ds={ds} />;
     case "two-column":
-      return <TwoColumnSlide slide={slide} theme={t} />;
+      return <TwoColumnSlide slide={slide} ds={ds} />;
     case "stats":
-      return <StatsSlide slide={slide} theme={t} />;
+      return <StatsSlide slide={slide} ds={ds} />;
     case "quote":
-      return <QuoteSlide slide={slide} theme={t} />;
+      return <QuoteSlide slide={slide} ds={ds} />;
     case "image-text":
-      return <ImageTextSlide slide={slide} theme={t} />;
+      return <ImageTextSlide slide={slide} ds={ds} />;
     case "cta":
-      return <CtaSlide slide={slide} theme={t} />;
+      return <CtaSlide slide={slide} ds={ds} />;
     default:
-      return <DefaultSlide slide={slide} theme={t} />;
+      return <DefaultSlide slide={slide} ds={ds} />;
   }
 }
 
-// --- Layout Components ---
+type SProps = { slide: Slide; ds: DesignSystem };
 
-function TitleSlide({
-  slide,
-  theme,
-}: {
-  slide: Slide;
-  theme: PresentationTheme;
-}) {
+// --- Title ---
+function TitleSlide({ slide, ds }: SProps) {
   const body = slide.body as TitleBody | undefined;
+  const { colors: c, typography: ty, decorations: dec } = ds;
   return (
     <div
       className="flex flex-col items-center justify-center h-full text-center px-16"
       style={{
-        background: `linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.secondaryColor} 100%)`,
-        color: "#fff",
+        background: `linear-gradient(135deg, ${c.primaryDark} 0%, ${c.primary} 100%)`,
+        color: c.textInverse,
       }}
     >
       <div
-        className="text-[56px] font-bold tracking-tight leading-tight"
-        style={{ fontFamily: "'Inter', sans-serif" }}
+        style={{
+          fontSize: ty.heroSize,
+          fontFamily: ty.headingFont,
+          fontWeight: ty.headingWeight,
+          lineHeight: ty.headingLineHeight,
+          letterSpacing: ty.headingLetterSpacing ? `${ty.headingLetterSpacing}em` : undefined,
+        }}
       >
         {slide.title}
       </div>
       {slide.subtitle && (
-        <div className="text-[24px] mt-4 opacity-90 font-light">
+        <div
+          className="mt-4 opacity-90"
+          style={{
+            fontSize: ty.h2Size,
+            fontWeight: ty.bodyWeight,
+          }}
+        >
           {slide.subtitle}
         </div>
       )}
       {body?.tagline && (
-        <div className="text-[16px] mt-8 opacity-70 italic max-w-[600px]">
+        <div
+          className="mt-8 opacity-70 italic max-w-[600px]"
+          style={{ fontSize: ty.bodySize }}
+        >
           {body.tagline}
         </div>
       )}
       {body?.description && (
-        <div className="text-[15px] mt-6 opacity-60 max-w-[560px] leading-relaxed whitespace-pre-line">
+        <div
+          className="mt-6 opacity-60 max-w-[560px] whitespace-pre-line"
+          style={{
+            fontSize: ty.bodySize,
+            lineHeight: ty.bodyLineHeight,
+          }}
+        >
           {body.description}
         </div>
       )}
-      {/* Decorative accent bar */}
       <div
-        className="w-16 h-1 mt-8 rounded-full"
-        style={{ background: theme.accentColor }}
+        className="mt-8 rounded-full"
+        style={{
+          width: dec.accentBarWidth,
+          height: dec.accentBarHeight,
+          background: c.accent,
+        }}
       />
     </div>
   );
 }
 
-function SectionDividerSlide({
-  slide,
-  theme,
-}: {
-  slide: Slide;
-  theme: PresentationTheme;
-}) {
+// --- Section Divider ---
+function SectionDividerSlide({ slide, ds }: SProps) {
+  const { colors: c, typography: ty, decorations: dec } = ds;
   return (
-    <div className="flex flex-col items-center justify-center h-full px-16">
+    <div
+      className="flex flex-col items-center justify-center h-full px-16"
+      style={{ background: c.backgroundAlt }}
+    >
+      {dec.sectionDividerStyle === "bar" && (
+        <div
+          className="rounded-full mb-8"
+          style={{
+            width: dec.accentBarWidth,
+            height: dec.accentBarHeight,
+            background: c.accent,
+          }}
+        />
+      )}
+      {dec.sectionDividerStyle === "line" && (
+        <div
+          className="mb-8"
+          style={{
+            width: 120,
+            height: 1,
+            background: c.accent,
+          }}
+        />
+      )}
       <div
-        className="w-12 h-1 rounded-full mb-8"
-        style={{ background: theme.accentColor }}
-      />
-      <div
-        className="text-[40px] font-bold tracking-tight"
-        style={{ color: theme.primaryColor }}
+        style={{
+          fontSize: ty.h1Size,
+          fontFamily: ty.headingFont,
+          fontWeight: ty.headingWeight,
+          lineHeight: ty.headingLineHeight,
+          color: c.primary,
+          letterSpacing: ty.headingLetterSpacing ? `${ty.headingLetterSpacing}em` : undefined,
+        }}
       >
         {slide.title}
       </div>
       {slide.subtitle && (
-        <div className="text-[18px] mt-4 opacity-60">{slide.subtitle}</div>
+        <div
+          className="mt-4 opacity-60"
+          style={{ fontSize: ty.h3Size, color: c.textMuted }}
+        >
+          {slide.subtitle}
+        </div>
       )}
     </div>
   );
 }
 
-function BulletsSlide({
-  slide,
-  theme,
-}: {
-  slide: Slide;
-  theme: PresentationTheme;
-}) {
+// --- Bullets ---
+function BulletsSlide({ slide, ds }: SProps) {
   const body = slide.body as BulletsBody;
+  const { colors: c, typography: ty, decorations: dec } = ds;
+
+  const bulletEl = (size?: number) => {
+    const s = size || dec.bulletSize;
+    const style = dec.bulletStyle;
+    if (style === "dash") return <span className="mt-1.5 shrink-0" style={{ color: c.accent }}>—</span>;
+    if (style === "square") return <span className="mt-1.5 shrink-0" style={{ width: s, height: s, background: c.accent }} />;
+    return (
+      <span
+        className="rounded-full mt-2 shrink-0"
+        style={{ width: s, height: s, background: c.accent }}
+      />
+    );
+  };
+
   return (
     <div className="flex flex-col h-full px-14 py-12">
-      <SlideHeader title={slide.title} subtitle={slide.subtitle} theme={theme} />
+      <SlideHeader title={slide.title} subtitle={slide.subtitle} ds={ds} />
       <div className="flex-1 flex flex-col justify-center mt-4">
-        <ul className="space-y-4">
+        <ul style={{ display: "flex", flexDirection: "column", gap: ds.spacing.sm }}>
           {body.items.map((item, i) => (
             <li key={i}>
               <div className="flex items-start gap-3">
-                <span
-                  className="w-2 h-2 rounded-full mt-2 shrink-0"
-                  style={{ background: theme.accentColor }}
-                />
+                {bulletEl()}
                 <div>
-                  <span className="text-[18px] font-medium">{item.text}</span>
+                  <span
+                    style={{
+                      fontSize: ty.h3Size,
+                      fontWeight: ty.boldWeight,
+                      color: c.text,
+                    }}
+                  >
+                    {item.text}
+                  </span>
                   {item.subItems && (
-                    <ul className="mt-1.5 space-y-1 ml-1">
+                    <ul className="mt-1.5 ml-1" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                       {item.subItems.map((sub, j) => (
                         <li
                           key={j}
-                          className="text-[14px] opacity-60 flex items-start gap-2"
+                          className="flex items-start gap-2"
+                          style={{
+                            fontSize: ty.bodySize - 1,
+                            color: c.textMuted,
+                          }}
                         >
                           <span className="mt-1.5">—</span>
                           <span>{sub}</span>
@@ -204,20 +267,15 @@ function BulletsSlide({
   );
 }
 
-function TwoColumnSlide({
-  slide,
-  theme,
-}: {
-  slide: Slide;
-  theme: PresentationTheme;
-}) {
+// --- Two Column ---
+function TwoColumnSlide({ slide, ds }: SProps) {
   const body = slide.body as TwoColumnBody;
   return (
     <div className="flex flex-col h-full px-14 py-12">
-      <SlideHeader title={slide.title} subtitle={slide.subtitle} theme={theme} />
-      <div className="flex-1 grid grid-cols-2 gap-10 mt-6">
-        <ColumnBlock col={body.left} theme={theme} />
-        <ColumnBlock col={body.right} theme={theme} />
+      <SlideHeader title={slide.title} subtitle={slide.subtitle} ds={ds} />
+      <div className="flex-1 grid grid-cols-2 mt-6" style={{ gap: ds.spacing.lg }}>
+        <ColumnBlock col={body.left} ds={ds} />
+        <ColumnBlock col={body.right} ds={ds} />
       </div>
     </div>
   );
@@ -225,39 +283,55 @@ function TwoColumnSlide({
 
 function ColumnBlock({
   col,
-  theme,
+  ds,
 }: {
   col: TwoColumnBody["left"];
-  theme: PresentationTheme;
+  ds: DesignSystem;
 }) {
+  const { colors: c, typography: ty, decorations: dec } = ds;
   return (
     <div className="flex flex-col">
       {col.heading && (
         <div
-          className="text-[16px] font-bold mb-4 pb-2 border-b-2"
+          className="mb-4 pb-2"
           style={{
-            color: theme.primaryColor,
-            borderColor: theme.accentColor,
+            fontSize: ty.h3Size,
+            fontFamily: ty.headingFont,
+            fontWeight: ty.boldWeight,
+            color: c.primary,
+            borderBottom: `2px solid ${c.accent}`,
           }}
         >
           {col.heading}
         </div>
       )}
       {col.items && (
-        <ul className="space-y-3">
+        <ul style={{ display: "flex", flexDirection: "column", gap: ds.spacing.xs + 4 }}>
           {col.items.map((item, i) => (
-            <li key={i} className="flex items-start gap-2 text-[14px]">
+            <li key={i} className="flex items-start gap-2" style={{ fontSize: ty.bodySize - 1 }}>
               <span
-                className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0"
-                style={{ background: theme.accentColor }}
+                className="rounded-full mt-1.5 shrink-0"
+                style={{
+                  width: dec.bulletSize - 2,
+                  height: dec.bulletSize - 2,
+                  background: c.accent,
+                }}
               />
-              <span className="leading-snug">{item}</span>
+              <span style={{ lineHeight: 1.45 }}>
+                {typeof item === "string" ? item : (item as { text?: string }).text || ""}
+              </span>
             </li>
           ))}
         </ul>
       )}
       {col.description && (
-        <p className="text-[14px] leading-relaxed opacity-70 mt-2">
+        <p
+          className="mt-2 opacity-70"
+          style={{
+            fontSize: ty.bodySize - 1,
+            lineHeight: ty.bodyLineHeight,
+          }}
+        >
           {col.description}
         </p>
       )}
@@ -265,35 +339,43 @@ function ColumnBlock({
   );
 }
 
-function StatsSlide({
-  slide,
-  theme,
-}: {
-  slide: Slide;
-  theme: PresentationTheme;
-}) {
+// --- Stats ---
+function StatsSlide({ slide, ds }: SProps) {
   const body = slide.body as StatsBody;
+  const { colors: c, typography: ty } = ds;
   return (
     <div className="flex flex-col h-full px-14 py-12">
-      <SlideHeader title={slide.title} subtitle={slide.subtitle} theme={theme} />
+      <SlideHeader title={slide.title} subtitle={slide.subtitle} ds={ds} />
       <div className="flex-1 flex items-center justify-center">
-        <div className="flex gap-12">
+        <div className="flex" style={{ gap: ds.spacing.lg + 8 }}>
           {body.stats.map((stat, i) => (
             <div key={i} className="text-center flex-1 min-w-[160px]">
               <div
-                className="text-[52px] font-bold leading-none"
-                style={{ color: theme.primaryColor }}
+                className="leading-none"
+                style={{
+                  fontSize: ty.heroSize + 8,
+                  fontFamily: ty.headingFont,
+                  fontWeight: ty.headingWeight,
+                  color: c.primary,
+                }}
               >
                 {stat.value}
               </div>
               <div
-                className="text-[16px] font-semibold mt-2"
-                style={{ color: theme.accentColor }}
+                className="mt-2"
+                style={{
+                  fontSize: ty.h3Size,
+                  fontWeight: ty.boldWeight,
+                  color: c.accent,
+                }}
               >
                 {stat.label}
               </div>
               {stat.description && (
-                <div className="text-[13px] mt-2 opacity-50 leading-snug">
+                <div
+                  className="mt-2 opacity-50 leading-snug"
+                  style={{ fontSize: ty.smallSize + 2, color: c.textMuted }}
+                >
                   {stat.description}
                 </div>
               )}
@@ -302,7 +384,10 @@ function StatsSlide({
         </div>
       </div>
       {body.footnote && (
-        <div className="text-[12px] opacity-40 text-center mt-2">
+        <div
+          className="opacity-40 text-center mt-2"
+          style={{ fontSize: ty.smallSize + 1, color: c.textMuted }}
+        >
           {body.footnote}
         </div>
       )}
@@ -310,41 +395,63 @@ function StatsSlide({
   );
 }
 
-function QuoteSlide({
-  slide,
-  theme,
-}: {
-  slide: Slide;
-  theme: PresentationTheme;
-}) {
+// --- Quote ---
+function QuoteSlide({ slide, ds }: SProps) {
   const body = slide.body as QuoteBody;
+  const { colors: c, typography: ty } = ds;
   return (
-    <div className="flex flex-col items-center justify-center h-full px-20 text-center">
-      <div className="text-[14px] font-semibold mb-6 tracking-widest uppercase opacity-40">
+    <div
+      className="flex flex-col items-center justify-center h-full px-20 text-center"
+      style={{ background: c.backgroundAlt }}
+    >
+      <div
+        className="mb-6 tracking-widest uppercase opacity-40"
+        style={{
+          fontSize: ty.bodySize - 1,
+          fontWeight: ty.boldWeight,
+          letterSpacing: "0.15em",
+        }}
+      >
         {slide.title}
       </div>
       <div
-        className="text-[60px] leading-none opacity-20 -mb-6"
-        style={{ color: theme.primaryColor }}
+        className="leading-none opacity-20 -mb-6"
+        style={{ fontSize: 60, color: c.primary }}
       >
         &ldquo;
       </div>
       <blockquote
-        className="text-[22px] leading-relaxed max-w-[640px] italic"
-        style={{ color: theme.primaryColor }}
+        className="max-w-[640px] italic"
+        style={{
+          fontSize: ty.h2Size,
+          fontFamily: ty.headingFont,
+          lineHeight: 1.5,
+          color: c.primary,
+        }}
       >
         {body.quote}
       </blockquote>
       {body.attribution && (
         <div
-          className="text-[14px] mt-6 font-semibold"
-          style={{ color: theme.accentColor }}
+          className="mt-6"
+          style={{
+            fontSize: ty.bodySize - 1,
+            fontWeight: ty.boldWeight,
+            color: c.accent,
+          }}
         >
           — {body.attribution}
         </div>
       )}
       {body.context && (
-        <div className="text-[13px] mt-4 opacity-50 max-w-[500px] leading-relaxed">
+        <div
+          className="mt-4 opacity-50 max-w-[500px]"
+          style={{
+            fontSize: ty.smallSize + 2,
+            lineHeight: ty.bodyLineHeight,
+            color: c.textMuted,
+          }}
+        >
           {body.context}
         </div>
       )}
@@ -352,68 +459,94 @@ function QuoteSlide({
   );
 }
 
-function ImageTextSlide({
-  slide,
-  theme,
-}: {
-  slide: Slide;
-  theme: PresentationTheme;
-}) {
+// --- Image + Text ---
+function ImageTextSlide({ slide, ds }: SProps) {
   const body = slide.body as ImageTextBody;
+  const { colors: c, typography: ty } = ds;
   const imgLeft = body.imagePosition !== "right";
   return (
     <div className={`flex h-full ${imgLeft ? "" : "flex-row-reverse"}`}>
       <div
         className="w-1/2 flex items-center justify-center"
-        style={{ background: `${theme.primaryColor}10` }}
+        style={{ background: c.backgroundAlt }}
       >
-        <div className="text-[14px] opacity-40 p-8">
+        <div className="opacity-40 p-8" style={{ fontSize: ty.bodySize - 1 }}>
           {body.imagePlaceholder || "[Image]"}
         </div>
       </div>
       <div className="w-1/2 flex flex-col justify-center px-12">
         <div
-          className="text-[28px] font-bold mb-4"
-          style={{ color: theme.primaryColor }}
+          className="mb-4"
+          style={{
+            fontSize: ty.h2Size,
+            fontFamily: ty.headingFont,
+            fontWeight: ty.headingWeight,
+            color: c.primary,
+          }}
         >
           {slide.title}
         </div>
-        <p className="text-[15px] leading-relaxed opacity-70">{body.text}</p>
+        <p
+          className="opacity-70"
+          style={{
+            fontSize: ty.bodySize,
+            lineHeight: ty.bodyLineHeight,
+          }}
+        >
+          {body.text}
+        </p>
       </div>
     </div>
   );
 }
 
-function CtaSlide({
-  slide,
-  theme,
-}: {
-  slide: Slide;
-  theme: PresentationTheme;
-}) {
+// --- CTA ---
+function CtaSlide({ slide, ds }: SProps) {
   const body = slide.body as CtaBody;
+  const { colors: c, typography: ty, decorations: dec, radius } = ds;
   return (
     <div
       className="flex flex-col items-center justify-center h-full px-16 text-center"
       style={{
-        background: `linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.secondaryColor} 100%)`,
-        color: "#fff",
+        background: `linear-gradient(135deg, ${c.primaryDark} 0%, ${c.primary} 100%)`,
+        color: c.textInverse,
       }}
     >
-      <div className="text-[14px] font-semibold mb-4 tracking-widest uppercase opacity-60">
+      <div
+        className="mb-4 tracking-widest uppercase opacity-60"
+        style={{
+          fontSize: ty.smallSize,
+          letterSpacing: "0.15em",
+        }}
+      >
         {slide.title}
       </div>
-      <div className="text-[36px] font-bold mb-4">{body.heading}</div>
+      <div
+        className="mb-4"
+        style={{
+          fontSize: ty.h1Size,
+          fontFamily: ty.headingFont,
+          fontWeight: ty.headingWeight,
+        }}
+      >
+        {body.heading}
+      </div>
       {body.description && (
-        <p className="text-[16px] opacity-80 max-w-[560px] leading-relaxed mb-8">
+        <p
+          className="opacity-80 max-w-[560px] mb-8"
+          style={{
+            fontSize: ty.h3Size,
+            lineHeight: ty.bodyLineHeight,
+          }}
+        >
           {body.description}
         </p>
       )}
       {body.actions && (
-        <ul className="space-y-2 mb-6">
+        <ul className="mb-6" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {body.actions.map((a, i) => (
-            <li key={i} className="flex items-center gap-2 text-[15px] opacity-90">
-              <span style={{ color: theme.accentColor }}>→</span>
+            <li key={i} className="flex items-center gap-2 opacity-90" style={{ fontSize: ty.bodySize }}>
+              <span style={{ color: c.accent }}>→</span>
               <span>{a}</span>
             </li>
           ))}
@@ -421,8 +554,12 @@ function CtaSlide({
       )}
       {body.contactInfo && (
         <div
-          className="text-[13px] mt-4 px-4 py-2 rounded-full"
-          style={{ background: "rgba(255,255,255,0.15)" }}
+          className="mt-4 px-4 py-2"
+          style={{
+            fontSize: ty.smallSize + 2,
+            background: "rgba(255,255,255,0.15)",
+            borderRadius: radius.full,
+          }}
         >
           {body.contactInfo}
         </div>
@@ -431,54 +568,76 @@ function CtaSlide({
   );
 }
 
-function DefaultSlide({
-  slide,
-  theme,
-}: {
-  slide: Slide;
-  theme: PresentationTheme;
-}) {
+// --- Default ---
+function DefaultSlide({ slide, ds }: SProps) {
+  const { colors: c, typography: ty } = ds;
   return (
     <div className="flex flex-col items-center justify-center h-full px-16">
       <div
-        className="text-[32px] font-bold"
-        style={{ color: theme.primaryColor }}
+        style={{
+          fontSize: ty.h1Size,
+          fontFamily: ty.headingFont,
+          fontWeight: ty.headingWeight,
+          color: c.primary,
+        }}
       >
         {slide.title}
       </div>
       {slide.subtitle && (
-        <div className="text-[16px] mt-2 opacity-60">{slide.subtitle}</div>
+        <div
+          className="mt-2 opacity-60"
+          style={{ fontSize: ty.h3Size, color: c.textMuted }}
+        >
+          {slide.subtitle}
+        </div>
       )}
     </div>
   );
 }
 
-// --- Shared Components ---
-
+// --- Shared ---
 function SlideHeader({
   title,
   subtitle,
-  theme,
+  ds,
 }: {
   title: string;
   subtitle?: string;
-  theme: PresentationTheme;
+  ds: DesignSystem;
 }) {
+  const { colors: c, typography: ty, decorations: dec } = ds;
   return (
     <div>
       <div
-        className="text-[28px] font-bold leading-tight"
-        style={{ color: theme.primaryColor }}
+        style={{
+          fontSize: ty.h2Size,
+          fontFamily: ty.headingFont,
+          fontWeight: ty.headingWeight,
+          lineHeight: ty.headingLineHeight,
+          color: c.primary,
+          letterSpacing: ty.headingLetterSpacing ? `${ty.headingLetterSpacing}em` : undefined,
+        }}
       >
         {title}
       </div>
       {subtitle && (
-        <div className="text-[15px] mt-1 opacity-50">{subtitle}</div>
+        <div
+          className="mt-1 opacity-50"
+          style={{ fontSize: ty.bodySize, color: c.textMuted }}
+        >
+          {subtitle}
+        </div>
       )}
-      <div
-        className="w-10 h-0.5 mt-3 rounded-full"
-        style={{ background: theme.accentColor }}
-      />
+      {dec.headerUnderline && (
+        <div
+          className="mt-3 rounded-full"
+          style={{
+            width: dec.accentBarWidth * 0.75,
+            height: dec.accentBarHeight,
+            background: c.accent,
+          }}
+        />
+      )}
     </div>
   );
 }

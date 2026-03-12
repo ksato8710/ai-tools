@@ -1,6 +1,8 @@
 import { PresentationData } from "./presentation-schema";
+import { alceoDesignSystem } from "./presentation-design-systems";
 
 export const alceoSamplePresentation: PresentationData = {
+  designSystem: alceoDesignSystem,
   metadata: {
     title: "Alceo - Innovation Design Partner",
     subtitle: "ビジネス × デザイン × テクノロジーの高度融合",

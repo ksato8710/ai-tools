@@ -3,9 +3,71 @@
   "name": "Alceo 営業資料",
   "description": "Alceo（Simplex Group デザイン部門）の営業資料。DX推進を検討する企業向け。",
   "status": "active",
-  "createdAt": "2026-03-12T05:27:45.164Z",
-  "updatedAt": "2026-03-12T05:52:55.846Z",
+  "createdAt": "2026-03-12T06:09:09.337Z",
+  "updatedAt": "2026-03-12T07:13:42.106Z",
   "presentation": {
+    "designSystem": {
+      "name": "Alceo",
+      "colors": {
+        "primary": "#0E1410",
+        "primaryDark": "#2B3D33",
+        "accent": "#38B48B",
+        "background": "#F4F1EE",
+        "backgroundAlt": "#E1E4DD",
+        "surface": "#FFFFFF",
+        "text": "#0E1410",
+        "textInverse": "#F4F1EE",
+        "textMuted": "#8F8F8F",
+        "error": "#B43838"
+      },
+      "typography": {
+        "headingFont": "'Inter', sans-serif",
+        "bodyFont": "'Inter', 'Hiragino Kaku Gothic ProN', sans-serif",
+        "heroSize": 47,
+        "h1Size": 36,
+        "h2Size": 27,
+        "h3Size": 20,
+        "bodySize": 15,
+        "smallSize": 11,
+        "headingWeight": 300,
+        "bodyWeight": 400,
+        "boldWeight": 600,
+        "headingLineHeight": 1.15,
+        "bodyLineHeight": 1.8,
+        "headingLetterSpacing": -0.03,
+        "bodyLetterSpacing": 0.01
+      },
+      "radius": {
+        "none": 0,
+        "sm": 2,
+        "md": 10,
+        "lg": 20,
+        "full": 9999
+      },
+      "spacing": {
+        "xs": 10,
+        "sm": 20,
+        "md": 30,
+        "lg": 40,
+        "xl": 80,
+        "sectionPadding": 100
+      },
+      "decorations": {
+        "accentBarHeight": 3,
+        "accentBarWidth": 48,
+        "bulletStyle": "circle",
+        "bulletSize": 6,
+        "sectionDividerStyle": "bar",
+        "backgroundPattern": "none",
+        "headerUnderline": true
+      },
+      "shadows": {
+        "none": "none",
+        "sm": "none",
+        "md": "none",
+        "lg": "none"
+      }
+    },
     "metadata": {
       "title": "Alceo - Innovation Design Partner",
       "subtitle": "ビジネス × デザイン × テクノロジーの高度融合",
@@ -21,11 +83,12 @@
       "date": "2026-03"
     },
     "theme": {
-      "primaryColor": "#0F4C81",
-      "secondaryColor": "#2E86AB",
-      "accentColor": "#F18F01",
-      "backgroundColor": "#FFFFFF",
-      "textColor": "#1B1B1B"
+      "primaryColor": "#0E1410",
+      "secondaryColor": "#2B3D33",
+      "accentColor": "#38B48B",
+      "backgroundColor": "#F4F1EE",
+      "textColor": "#0E1410",
+      "fontFamily": "'Inter', sans-serif"
     },
     "outline": [
       {
@@ -176,16 +239,16 @@
           "left": {
             "heading": "戦略・企画フェーズ",
             "items": [
-              "Business & Service Design — ビジネスモデル設計、ジャーニーマップ、サービスブループリント",
-              "Brand Design — ブランドコンセプト開発、VI、Web・広告デザイン",
-              "Human Resource Development — 組織内デザイン人材の育成"
+              "Business & Service Design — ビジネスモデル・ジャーニーマップ設計",
+              "Brand Design — VI・Web・広告デザイン",
+              "Human Resource Development — デザイン人材育成"
             ]
           },
           "right": {
             "heading": "実行・改善フェーズ",
             "items": [
-              "Digital Product & Experience Design — リサーチから開発・リリースまで9フェーズの一貫プロセス",
-              "Growth Design — AAARRフレームワークに基づく継続的なグロース支援"
+              "Digital Product & Experience Design — 9フェーズ一貫プロセス",
+              "Growth Design — AAARRフレームワーク活用"
             ]
           }
         }
@@ -276,54 +339,62 @@
       {
         "id": "slide-9",
         "sectionId": "sec-5",
-        "layout": "bullets",
+        "layout": "two-column",
         "title": "7 Values — Alceoの行動指針",
         "body": {
-          "type": "bullets",
-          "items": [
-            {
-              "text": "Be Sharp, Be Logical",
-              "subItems": [
-                "エビデンスに基づく無駄のない思考"
-              ]
-            },
-            {
-              "text": "God is in the Details",
-              "subItems": [
-                "細部への徹底的なこだわり"
-              ]
-            },
-            {
-              "text": "Mutual Respect",
-              "subItems": [
-                "多様な才能と視点の尊重"
-              ]
-            },
-            {
-              "text": "Borderless",
-              "subItems": [
-                "職種を超えた統合チーム"
-              ]
-            },
-            {
-              "text": "Enjoy Creation",
-              "subItems": [
-                "創造を楽しむモチベーション"
-              ]
-            },
-            {
-              "text": "Pounding the Rock",
-              "subItems": [
-                "粘り強く積み重ねる努力"
-              ]
-            },
-            {
-              "text": "Useful and Beautiful",
-              "subItems": [
-                "機能と美の調和"
-              ]
-            }
-          ]
+          "type": "two-column",
+          "left": {
+            "type": "bullets",
+            "items": [
+              {
+                "text": "Be Sharp, Be Logical",
+                "subItems": [
+                  "エビデンスに基づく無駄のない思考"
+                ]
+              },
+              {
+                "text": "God is in the Details",
+                "subItems": [
+                  "細部への徹底的なこだわり"
+                ]
+              },
+              {
+                "text": "Mutual Respect",
+                "subItems": [
+                  "多様な才能と視点の尊重"
+                ]
+              },
+              {
+                "text": "Borderless",
+                "subItems": [
+                  "職種を超えた統合チーム"
+                ]
+              }
+            ]
+          },
+          "right": {
+            "type": "bullets",
+            "items": [
+              {
+                "text": "Enjoy Creation",
+                "subItems": [
+                  "創造を楽しむモチベーション"
+                ]
+              },
+              {
+                "text": "Pounding the Rock",
+                "subItems": [
+                  "粘り強く積み重ねる努力"
+                ]
+              },
+              {
+                "text": "Useful and Beautiful",
+                "subItems": [
+                  "機能と美の調和"
+                ]
+              }
+            ]
+          }
         }
       },
       {

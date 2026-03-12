@@ -6,12 +6,17 @@ import {
   PresentationMetadata,
   OutlineSection,
   Slide,
-  defaultTheme,
+  DesignSystem,
+  defaultDesignSystem,
+  designSystemToTheme,
 } from "@/lib/presentation-schema";
+import { builtInDesignSystems } from "@/lib/presentation-design-systems";
 import { generatePptx } from "@/lib/presentation-pptx";
 import SlideRenderer from "./SlideRenderer";
 import PlanningPanel from "./PlanningPanel";
 import SlideEditorPanel from "./SlideEditorPanel";
+import DesignSystemPanel from "./DesignSystemPanel";
+import CheckPanel from "./CheckPanel";
 
 interface PresentationWorkspaceProps {
   initialData: PresentationData;
@@ -20,6 +25,7 @@ interface PresentationWorkspaceProps {
 }
 
 type ViewMode = "planning" | "slides";
+type RightPanel = "editor" | "design" | "check" | "json" | "none";
 
 export default function PresentationWorkspace({
   initialData,
@@ -32,12 +38,12 @@ export default function PresentationWorkspace({
   );
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
   const [viewMode, setViewMode] = useState<ViewMode>("slides");
-  const [showEditor, setShowEditor] = useState(true);
-  const [showJson, setShowJson] = useState(false);
+  const [rightPanel, setRightPanel] = useState<RightPanel>("editor");
 
-  const theme = data.theme || defaultTheme;
+  // Resolve the active design system
+  const ds: DesignSystem = data.designSystem || defaultDesignSystem;
+
   const activeSlide = data.slides[activeSlideIndex];
-
   const activeSectionId = activeSlide?.sectionId;
 
   const handleMetadataChange = useCallback(
@@ -51,17 +57,23 @@ export default function PresentationWorkspace({
     setData((prev) => ({ ...prev, outline }));
   }, []);
 
-  const handleSlideChange = useCallback(
-    (updatedSlide: Slide) => {
-      setData((prev) => ({
-        ...prev,
-        slides: prev.slides.map((s) =>
-          s.id === updatedSlide.id ? updatedSlide : s
-        ),
-      }));
-    },
-    []
-  );
+  const handleSlideChange = useCallback((updatedSlide: Slide) => {
+    setData((prev) => ({
+      ...prev,
+      slides: prev.slides.map((s) =>
+        s.id === updatedSlide.id ? updatedSlide : s
+      ),
+    }));
+  }, []);
+
+  const handleDesignSystemChange = useCallback((newDs: DesignSystem) => {
+    setData((prev) => ({
+      ...prev,
+      designSystem: newDs,
+      // Also sync the legacy theme for PPTX export backward compat
+      theme: designSystemToTheme(newDs),
+    }));
+  }, []);
 
   const handleSectionClick = useCallback(
     (sectionId: string) => {
@@ -128,10 +140,11 @@ export default function PresentationWorkspace({
     }
   }, [data]);
 
-  const jsonOutput = useMemo(
-    () => JSON.stringify(data, null, 2),
-    [data]
-  );
+  const jsonOutput = useMemo(() => JSON.stringify(data, null, 2), [data]);
+
+  const toggleRightPanel = (panel: RightPanel) => {
+    setRightPanel((prev) => (prev === panel ? "none" : panel));
+  };
 
   return (
     <div className="flex flex-col h-screen bg-cream">
@@ -185,6 +198,16 @@ export default function PresentationWorkspace({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Design system indicator */}
+          <div className="flex items-center gap-1.5 mr-2">
+            <div
+              className="w-3 h-3 rounded-full border border-white/50"
+              style={{ background: ds.colors.accent }}
+              title={ds.name}
+            />
+            <span className="text-[10px] text-text-muted">{ds.name}</span>
+          </div>
+
           <button
             className="px-3 py-1.5 text-xs rounded-md bg-accent-bark text-white hover:bg-accent-bark-hover transition-colors disabled:opacity-50 flex items-center gap-1.5"
             onClick={handleDownloadPptx}
@@ -198,21 +221,48 @@ export default function PresentationWorkspace({
           </button>
           <button
             className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
-              showEditor
+              rightPanel === "editor"
                 ? "bg-accent-leaf text-white"
                 : "bg-card text-text-secondary hover:bg-card-hover"
             }`}
-            onClick={() => setShowEditor(!showEditor)}
+            onClick={() => toggleRightPanel("editor")}
           >
-            編集パネル
+            編集
+          </button>
+          <button
+            className={`px-3 py-1.5 text-xs rounded-md transition-colors flex items-center gap-1 ${
+              rightPanel === "design"
+                ? "bg-accent-leaf text-white"
+                : "bg-card text-text-secondary hover:bg-card-hover"
+            }`}
+            onClick={() => toggleRightPanel("design")}
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <circle cx="6" cy="6" r="4.5" />
+              <circle cx="6" cy="6" r="1.5" />
+            </svg>
+            テーマ
+          </button>
+          <button
+            className={`px-3 py-1.5 text-xs rounded-md transition-colors flex items-center gap-1 ${
+              rightPanel === "check"
+                ? "bg-accent-leaf text-white"
+                : "bg-card text-text-secondary hover:bg-card-hover"
+            }`}
+            onClick={() => toggleRightPanel("check")}
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M3 6l2.5 2.5L9 4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            チェック
           </button>
           <button
             className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
-              showJson
+              rightPanel === "json"
                 ? "bg-accent-leaf text-white"
                 : "bg-card text-text-secondary hover:bg-card-hover"
             }`}
-            onClick={() => setShowJson(!showJson)}
+            onClick={() => toggleRightPanel("json")}
           >
             JSON
           </button>
@@ -220,7 +270,7 @@ export default function PresentationWorkspace({
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Left panel - Planning or Slide thumbnails */}
+        {/* Left panel */}
         <aside className="w-72 border-r border-border-light bg-white shrink-0 overflow-hidden flex flex-col">
           {viewMode === "planning" ? (
             <PlanningPanel
@@ -247,7 +297,7 @@ export default function PresentationWorkspace({
                     <div className="flex-1">
                       <SlideRenderer
                         slide={slide}
-                        theme={theme}
+                        ds={ds}
                         scale={0.24}
                         onClick={() => setActiveSlideIndex(i)}
                         isActive={i === activeSlideIndex}
@@ -268,11 +318,7 @@ export default function PresentationWorkspace({
           {activeSlide && (
             <>
               <div className="flex items-center justify-center flex-1">
-                <SlideRenderer
-                  slide={activeSlide}
-                  theme={theme}
-                  scale={0.85}
-                />
+                <SlideRenderer slide={activeSlide} ds={ds} scale={0.85} />
               </div>
 
               {/* Navigation */}
@@ -296,7 +342,6 @@ export default function PresentationWorkspace({
                 </button>
               </div>
 
-              {/* Speaker notes */}
               {activeSlide.notes && (
                 <div className="absolute bottom-14 left-1/2 -translate-x-1/2 max-w-lg bg-white/90 backdrop-blur-sm rounded-lg px-4 py-2 shadow-sm border border-border-light">
                   <div className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-0.5">
@@ -311,10 +356,10 @@ export default function PresentationWorkspace({
           )}
         </main>
 
-        {/* Right panel - Editor or JSON */}
-        {(showEditor || showJson) && (
+        {/* Right panel */}
+        {rightPanel !== "none" && (
           <aside className="w-80 border-l border-border-light bg-white shrink-0 overflow-hidden">
-            {showJson ? (
+            {rightPanel === "json" ? (
               <div className="h-full flex flex-col">
                 <div className="px-4 py-3 border-b border-border-light flex items-center justify-between">
                   <h3 className="text-xs font-bold tracking-widest uppercase text-text-muted">
@@ -322,9 +367,7 @@ export default function PresentationWorkspace({
                   </h3>
                   <button
                     className="text-xs text-accent-leaf hover:underline"
-                    onClick={() => {
-                      navigator.clipboard.writeText(jsonOutput);
-                    }}
+                    onClick={() => navigator.clipboard.writeText(jsonOutput)}
                   >
                     コピー
                   </button>
@@ -333,6 +376,33 @@ export default function PresentationWorkspace({
                   {jsonOutput}
                 </pre>
               </div>
+            ) : rightPanel === "design" ? (
+              <DesignSystemPanel
+                current={ds}
+                builtIn={builtInDesignSystems}
+                onChange={handleDesignSystemChange}
+              />
+            ) : rightPanel === "check" ? (
+              <CheckPanel
+                data={data}
+                ds={ds}
+                sessionId={sessionId}
+                onNavigateSlide={setActiveSlideIndex}
+                onDataUpdated={async () => {
+                  if (!sessionId) return;
+                  try {
+                    const res = await fetch(`/api/presentation/${sessionId}`);
+                    if (res.ok) {
+                      const session = await res.json();
+                      if (session.presentation) {
+                        setData(session.presentation);
+                      }
+                    }
+                  } catch (err) {
+                    console.error("Failed to reload session:", err);
+                  }
+                }}
+              />
             ) : activeSlide ? (
               <SlideEditorPanel
                 slide={activeSlide}
@@ -345,7 +415,6 @@ export default function PresentationWorkspace({
         )}
       </div>
 
-      {/* Keyboard navigation */}
       <KeyboardHandler
         onPrev={() => navigateSlide(-1)}
         onNext={() => navigateSlide(1)}
