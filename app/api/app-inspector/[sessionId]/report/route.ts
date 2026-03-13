@@ -93,16 +93,33 @@ export async function POST(
         message: `${screens.length}画面のデータからレポートを生成中...`,
       });
 
-      const report = await generateFinalReport(
-        screens,
-        session.appPackage,
-        session.appName,
-        (msg) => pushReportProgress(sessionId, "progress", { phase: "llm", message: msg }),
-        logFile,
-      );
+      let report;
+      try {
+        report = await generateFinalReport(
+          screens,
+          session.appPackage,
+          session.appName,
+          (msg) => pushReportProgress(sessionId, "progress", { phase: "llm", message: msg }),
+          logFile,
+        );
+      } catch (genErr) {
+        const errDetail = genErr instanceof Error ? genErr.message : String(genErr);
+        pushReportProgress(sessionId, "error", { message: `レポート生成エラー: ${errDetail}` });
+        pushReportProgress(sessionId, "done", {});
+        return;
+      }
 
       if (!report) {
-        pushReportProgress(sessionId, "error", { message: "レポート生成に失敗しました" });
+        // Check log file for hints
+        const { readFile } = await import("fs/promises");
+        let hint = "";
+        try {
+          const logContent = await readFile(logFile, "utf-8");
+          if (logContent.includes("Invalid API key")) {
+            hint = " (原因: Claude CLIの認証が無効です。`claude login` を実行してください)";
+          }
+        } catch { /* ignore */ }
+        pushReportProgress(sessionId, "error", { message: `レポート生成に失敗しました${hint}` });
         pushReportProgress(sessionId, "done", {});
         return;
       }

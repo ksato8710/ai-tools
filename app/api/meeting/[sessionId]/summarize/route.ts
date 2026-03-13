@@ -1,8 +1,55 @@
 import { NextResponse } from "next/server";
 import { getSession, saveSession } from "@/lib/meeting-store";
-import Anthropic from "@anthropic-ai/sdk";
+import { spawn } from "child_process";
 
-const anthropic = new Anthropic();
+function callClaude(prompt: string): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const proc = spawn(
+      "claude",
+      ["-p", "--model", "sonnet", "--output-format", "stream-json"],
+      {
+        env: { ...process.env, CLAUDECODE: undefined, ANTHROPIC_API_KEY: undefined },
+        stdio: ["pipe", "pipe", "pipe"],
+        timeout: 120_000,
+      }
+    );
+
+    proc.stdin.end(prompt);
+
+    let resultText = "";
+    let buffer = "";
+
+    proc.stdout.on("data", (chunk: Buffer) => {
+      buffer += chunk.toString();
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const event = JSON.parse(line);
+          if (event.type === "result") {
+            resultText = event.result || "";
+            if (event.is_error) {
+              reject(new Error(`Claude error: ${resultText}`));
+            }
+          }
+        } catch { /* skip */ }
+      }
+    });
+
+    proc.stderr.on("data", () => {});
+
+    proc.on("close", (code) => {
+      if (code !== 0 && !resultText) {
+        reject(new Error(`Claude exited with code ${code}`));
+      } else {
+        resolve(resultText);
+      }
+    });
+
+    proc.on("error", (err) => reject(err));
+  });
+}
 
 export async function POST(
   _req: Request,
@@ -19,13 +66,7 @@ export async function POST(
   }
 
   try {
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 4096,
-      messages: [
-        {
-          role: "user",
-          content: `以下は会議の音声トランスクリプトです。議事録として要約してください。
+    const prompt = `以下は会議の音声トランスクリプトです。議事録として要約してください。
 
 ## 出力フォーマット（JSON）
 {
@@ -38,12 +79,9 @@ export async function POST(
 ## トランスクリプト
 ${session.rawTranscript}
 
-JSONのみを出力してください。`,
-        },
-      ],
-    });
+JSONのみを出力してください。`;
 
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    const text = await callClaude(prompt);
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       return NextResponse.json({ error: "Failed to parse summary" }, { status: 500 });

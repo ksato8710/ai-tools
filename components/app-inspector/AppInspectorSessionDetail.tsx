@@ -121,7 +121,8 @@ export default function AppInspectorSessionDetail({ sessionId }: Props) {
               {session.appPackage}
             </p>
           </div>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-2">
+            <CopySessionButton sessionId={sessionId} />
             <StatusBadge status={session.status} />
           </div>
         </div>
@@ -241,6 +242,43 @@ function TabButton({
       `}
     >
       {children}
+    </button>
+  );
+}
+
+function CopySessionButton({ sessionId }: { sessionId: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    const url = `${window.location.origin}/app-inspector/${sessionId}`;
+    const text = `Session: ${sessionId}\n${url}`;
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-text-muted hover:text-text-primary bg-cream border border-border-light rounded-lg hover:border-accent-leaf/30 transition-all"
+      title="セッション情報をコピー"
+    >
+      {copied ? (
+        <>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-accent-leaf">
+            <path d="M3 7l3 3 5-5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          コピー済み
+        </>
+      ) : (
+        <>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <rect x="4.5" y="4.5" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+            <path d="M9.5 4.5V3a1.5 1.5 0 00-1.5-1.5H3A1.5 1.5 0 001.5 3v5A1.5 1.5 0 003 9.5h1.5" stroke="currentColor" strokeWidth="1.2" />
+          </svg>
+          セッション情報をコピー
+        </>
+      )}
     </button>
   );
 }

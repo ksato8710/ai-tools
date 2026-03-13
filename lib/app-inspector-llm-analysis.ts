@@ -30,7 +30,9 @@ async function callClaudeCode(
     args.push("--system-prompt", systemPrompt);
   }
 
-  const env = { ...process.env, CLAUDECODE: undefined };
+  // Remove CLAUDECODE (prevents nested session error) and ANTHROPIC_API_KEY
+  // (prevents overriding CLI's own authenticated session with an env var from .env.local)
+  const env = { ...process.env, CLAUDECODE: undefined, ANTHROPIC_API_KEY: undefined };
 
   const writeLog = (msg: string) => {
     if (logFile) appendFile(logFile, msg + "\n").catch(() => {});
@@ -685,20 +687,15 @@ ${screensText}
 - issuesは具体的で改善可能な内容にすること
 - すべて日本語で出力`;
 
-  try {
-    const text = await callClaudeCode(userPrompt, systemPrompt, onProgress, logFile);
+  const text = await callClaudeCode(userPrompt, systemPrompt, onProgress, logFile);
 
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      console.warn("[Final Report] No JSON found in response");
-      return null;
-    }
-
-    const report = JSON.parse(jsonMatch[0]);
-    report.generatedAt = new Date().toISOString();
-    return report as InspectorReport;
-  } catch (err) {
-    console.error("[Final Report] Error:", err);
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    console.warn("[Final Report] No JSON found in response:", text.slice(0, 200));
     return null;
   }
+
+  const report = JSON.parse(jsonMatch[0]);
+  report.generatedAt = new Date().toISOString();
+  return report as InspectorReport;
 }

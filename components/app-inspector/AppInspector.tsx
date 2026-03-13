@@ -363,7 +363,7 @@ function AppInspectorInner() {
                     />
                   </svg>
                 </div>
-                <div>
+                <div className="flex-1">
                   <h2 className="font-[family-name:var(--font-nunito)] text-xl font-bold text-text-primary">
                     {activeSession.appName}
                   </h2>
@@ -371,6 +371,7 @@ function AppInspectorInner() {
                     {activeSession.appPackage}
                   </p>
                 </div>
+                <CopySessionInfoButton sessionId={activeSession.id} appName={activeSession.appName} appPackage={activeSession.appPackage} />
               </div>
 
               {/* Video player */}
@@ -461,6 +462,11 @@ function AppInspectorInner() {
                 <div className="bg-white rounded-2xl shadow-sm border p-6">
                   <ReportPanel sessionId={activeSession.id} />
                 </div>
+              )}
+
+              {/* Register to Competitor UI Viewer */}
+              {capturePhase === "done" && (activeSession.screens || []).length > 0 && (
+                <RegisterButton sessionId={activeSession.id} appName={activeSession.appName} />
               )}
             </div>
           )}
@@ -888,6 +894,282 @@ function CaptureReviewPanel({
           このまま分析に進む
         </button>
       </div>
+    </div>
+  );
+}
+
+function CopySessionInfoButton({ sessionId, appName, appPackage }: { sessionId: string; appName: string; appPackage: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    const text = `App: ${appName} (${appPackage})\nSession ID: ${sessionId}`;
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-text-muted hover:text-text-primary bg-cream border border-border-light rounded-lg hover:border-accent-leaf/30 transition-all shrink-0"
+      title="セッション情報をコピー"
+    >
+      {copied ? (
+        <>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-accent-leaf">
+            <path d="M3 7l3 3 5-5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          コピー済み
+        </>
+      ) : (
+        <>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <rect x="4.5" y="4.5" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+            <path d="M9.5 4.5V3a1.5 1.5 0 00-1.5-1.5H3A1.5 1.5 0 001.5 3v5A1.5 1.5 0 003 9.5h1.5" stroke="currentColor" strokeWidth="1.2" />
+          </svg>
+          セッション情報をコピー
+        </>
+      )}
+    </button>
+  );
+}
+
+interface CompetitorCategory {
+  id: string;
+  name: string;
+  name_en?: string;
+}
+
+interface CompetitorIndustry {
+  id: string;
+  name: string;
+  name_en?: string;
+  icon: string;
+  categories: CompetitorCategory[];
+}
+
+function RegisterButton({ sessionId, appName }: { sessionId: string; appName: string }) {
+  const [status, setStatus] = useState<"idle" | "selecting" | "registering" | "done" | "error">("idle");
+  const [result, setResult] = useState<{ inspectionId?: string; screensUploaded?: number; totalScreens?: number; viewerUrl?: string } | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [errorDetails, setErrorDetails] = useState<string[]>([]);
+
+  // Category selection state
+  const [industries, setIndustries] = useState<CompetitorIndustry[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(false);
+  const [selectedIndustryId, setSelectedIndustryId] = useState<string>("");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
+
+  const selectedIndustry = industries.find((i) => i.id === selectedIndustryId);
+
+  const fetchCategories = async () => {
+    setLoadingCategories(true);
+    try {
+      const res = await fetch("/api/app-inspector/competitor-categories");
+      const data = await res.json();
+      if (res.ok && data.industries) {
+        setIndustries(data.industries);
+      }
+    } catch {
+      // Silently fail — user can still register without category
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
+
+  const handleStartRegister = async () => {
+    setStatus("selecting");
+    setErrorMsg(null);
+    setErrorDetails([]);
+    await fetchCategories();
+  };
+
+  const handleRegister = async () => {
+    setStatus("registering");
+    setErrorMsg(null);
+    setErrorDetails([]);
+    try {
+      const res = await fetch(`/api/app-inspector/${sessionId}/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          industryId: selectedIndustryId || undefined,
+          categoryId: selectedCategoryId || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErrorDetails(data.details || []);
+        throw new Error(data.error || "Registration failed");
+      }
+      setResult(data);
+      setStatus("done");
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Registration failed");
+      setStatus("error");
+    }
+  };
+
+  const resetToIdle = () => {
+    setStatus("idle");
+    setResult(null);
+    setSelectedIndustryId("");
+    setSelectedCategoryId("");
+  };
+
+  return (
+    <div className="bg-surface rounded-2xl border border-border-light p-5 space-y-3">
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center shrink-0">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-indigo-600">
+            <path d="M2 3a1 1 0 011-1h10a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V3z" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M5 7h6M5 10h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          </svg>
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold text-text-primary">Competitor UI Viewer に登録</h3>
+          <p className="text-[11px] text-text-muted">取得したUI情報・分析結果を競合UIビューアに送信します</p>
+        </div>
+      </div>
+
+      {status === "idle" && (
+        <button
+          onClick={handleStartRegister}
+          className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors flex items-center gap-2"
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M1 7h8m0 0L6 4m3 3L6 10M11 2v10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          {appName} を登録
+        </button>
+      )}
+
+      {status === "selecting" && (
+        <div className="space-y-3">
+          <p className="text-xs text-text-secondary font-medium">登録先カテゴリを選択</p>
+
+          {loadingCategories ? (
+            <div className="flex items-center gap-2 text-xs text-text-muted">
+              <span className="inline-block w-3 h-3 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+              カテゴリを読み込み中...
+            </div>
+          ) : (
+            <>
+              <select
+                value={selectedIndustryId}
+                onChange={(e) => { setSelectedIndustryId(e.target.value); setSelectedCategoryId(""); }}
+                className="w-full px-3 py-2 text-sm border border-border-light rounded-lg bg-white focus:outline-none focus:border-indigo-400"
+              >
+                <option value="">業界を選択...</option>
+                {industries.map((ind) => (
+                  <option key={ind.id} value={ind.id}>
+                    {ind.icon} {ind.name}
+                  </option>
+                ))}
+              </select>
+
+              {selectedIndustry && (
+                <select
+                  value={selectedCategoryId}
+                  onChange={(e) => setSelectedCategoryId(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-border-light rounded-lg bg-white focus:outline-none focus:border-indigo-400"
+                >
+                  <option value="">カテゴリを選択...</option>
+                  {selectedIndustry.categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </>
+          )}
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRegister}
+              disabled={!selectedIndustryId || !selectedCategoryId}
+              className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              登録する
+            </button>
+            <button
+              onClick={handleRegister}
+              className="px-3 py-2 text-xs text-text-muted hover:text-text-secondary hover:underline"
+            >
+              カテゴリなしで登録
+            </button>
+            <button
+              onClick={resetToIdle}
+              className="px-3 py-2 text-xs text-text-muted hover:text-text-secondary hover:underline"
+            >
+              キャンセル
+            </button>
+          </div>
+        </div>
+      )}
+
+      {status === "registering" && (
+        <div className="flex items-center gap-2 text-sm text-indigo-600">
+          <span className="inline-block w-4 h-4 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+          登録中... スクリーンショットをアップロードしています
+        </div>
+      )}
+
+      {status === "done" && result && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-1.5">
+          <div className="flex items-center gap-1.5 text-sm text-green-800 font-medium">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M3 7l3 3 5-5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            登録完了
+          </div>
+          <p className="text-xs text-green-700">
+            {result.screensUploaded}/{result.totalScreens} 画面のスクリーンショットをアップロードしました
+          </p>
+          <div className="flex items-center gap-3">
+            {result.viewerUrl && (
+              <a
+                href={result.viewerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-indigo-600 hover:underline inline-flex items-center gap-1"
+              >
+                Competitor UI Viewer で確認
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path d="M4 1h5v5M9 1L4 6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </a>
+            )}
+            <button
+              onClick={resetToIdle}
+              className="text-xs text-text-muted hover:text-text-secondary hover:underline"
+            >
+              再アップロード
+            </button>
+          </div>
+        </div>
+      )}
+
+      {status === "error" && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 space-y-2">
+          <p className="text-xs text-red-700 font-medium">{errorMsg}</p>
+          {errorDetails.length > 0 && (
+            <details className="text-xs text-red-600">
+              <summary className="cursor-pointer hover:underline">エラー詳細を表示</summary>
+              <ul className="mt-1 space-y-0.5 pl-3 list-disc text-[11px]">
+                {errorDetails.map((d, i) => <li key={i}>{d}</li>)}
+              </ul>
+            </details>
+          )}
+          <button
+            onClick={() => setStatus("selecting")}
+            className="text-xs text-red-600 hover:underline"
+          >
+            再試行
+          </button>
+        </div>
+      )}
     </div>
   );
 }

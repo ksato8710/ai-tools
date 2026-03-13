@@ -7,9 +7,12 @@ export default function Header() {
   const pathname = usePathname();
 
   return (
-    <header className="sticky top-0 z-50 bg-cream/80 backdrop-blur-md border-b border-border-light">
-      <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2">
+    <header
+      className="sticky top-0 z-50 bg-cream/80 backdrop-blur-md border-b border-border-light"
+      style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+    >
+      <div className="max-w-7xl mx-auto pl-20 pr-6 h-14 flex items-center justify-between">
+        <Link href="/" className="flex items-center gap-2" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
           <span className="text-xl font-bold font-[family-name:var(--font-nunito)] text-accent-leaf">
             AI Tools
           </span>
@@ -18,7 +21,7 @@ export default function Header() {
           </span>
         </Link>
 
-        <nav className="flex items-center gap-1">
+        <nav className="flex items-center gap-1" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
           <NavLink href="/" active={pathname === "/"}>
             Home
           </NavLink>
@@ -27,6 +30,15 @@ export default function Header() {
           </NavLink>
           <NavLink href="/variant-ui" active={pathname === "/variant-ui"}>
             Variant UI
+          </NavLink>
+          <NavLink href="/presentation" active={pathname === "/presentation"}>
+            Presentation
+          </NavLink>
+          <NavLink href="/app-inspector" active={pathname.startsWith("/app-inspector")}>
+            App Inspector
+          </NavLink>
+          <NavLink href="/meeting" active={pathname === "/meeting"}>
+            Meeting
           </NavLink>
         </nav>
       </div>

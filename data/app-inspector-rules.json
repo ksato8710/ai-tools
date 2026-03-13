@@ -1,32 +1,8 @@
 {
   "version": 1,
-  "lastUpdated": "2026-03-12T16:06:42.357Z",
-  "totalAnalyses": 16,
+  "lastUpdated": "2026-03-13T14:20:14.910Z",
+  "totalAnalyses": 28,
   "screenTypePatterns": [
-    {
-      "keywords": [
-        "たまポン",
-        "行政P/商品券",
-        "さいコイン",
-        "さい&#10;コイン",
-        "一覧",
-        "チャージ",
-        "使う",
-        "履歴",
-        "ごみ出し&#10;カレンダー",
-        "図書館利用者&#10;カード"
-      ],
-      "elementTypes": [
-        "group",
-        "image",
-        "scroll-area",
-        "button"
-      ],
-      "screenType": "home",
-      "confidence": 0.9494358337571449,
-      "occurrences": 17,
-      "lastSeen": "2026-03-12T16:06:42.358Z"
-    },
     {
       "keywords": [
         "戻る",
@@ -47,9 +23,108 @@
         "scroll-area"
       ],
       "screenType": "detail",
-      "confidence": 0.9203470698197999,
-      "occurrences": 13,
-      "lastSeen": "2026-03-12T16:06:42.358Z"
+      "confidence": 0.9173009381770044,
+      "occurrences": 21,
+      "lastSeen": "2026-03-13T06:29:29.311Z"
+    },
+    {
+      "keywords": [
+        "たまポン",
+        "行政P/商品券",
+        "さいコイン",
+        "さい&#10;コイン",
+        "一覧",
+        "チャージ",
+        "使う",
+        "履歴",
+        "ごみ出し&#10;カレンダー",
+        "図書館利用者&#10;カード"
+      ],
+      "elementTypes": [
+        "group",
+        "image",
+        "scroll-area",
+        "button"
+      ],
+      "screenType": "home",
+      "confidence": 0.9432887228089585,
+      "occurrences": 20,
+      "lastSeen": "2026-03-13T06:29:29.311Z"
+    },
+    {
+      "keywords": [
+        "アカウントと設定",
+        "テキストを翻訳",
+        "テキストを推敲",
+        "保存済み",
+        "Translate_View",
+        "Paste",
+        "ペースト",
+        "やり直す",
+        "画像内のテキストを読み込む",
+        "カメラでテキストをスキャンする"
+      ],
+      "elementTypes": [
+        "group",
+        "button",
+        "disabled",
+        "text",
+        "compose.ui.platform.b1"
+      ],
+      "screenType": "home",
+      "confidence": 0.9321302109999999,
+      "occurrences": 11,
+      "lastSeen": "2026-03-13T14:20:14.932Z"
+    },
+    {
+      "keywords": [
+        "閉じる",
+        "原文のテキストを削除します",
+        "Translate_View",
+        "訳文の読み上げ",
+        "Alternatives_Show",
+        "代案の一覧",
+        "訳文のテキストをシェアします",
+        "訳文のテキストをコピーします",
+        "中国語",
+        "原文の言語と訳文の言語を入れ替えます"
+      ],
+      "elementTypes": [
+        "group",
+        "button",
+        "disabled",
+        "text",
+        "compose.ui.platform.b1"
+      ],
+      "screenType": "form",
+      "confidence": 0.88,
+      "occurrences": 11,
+      "lastSeen": "2026-03-13T14:20:14.937Z"
+    },
+    {
+      "keywords": [
+        "閉じる",
+        "原文のテキストを削除します",
+        "Translate_View",
+        "ぬぬぬぬぬ",
+        "Nnnnnnn",
+        "訳文の読み上げ",
+        "Alternatives_Show",
+        "代案の一覧",
+        "保存済みに追加",
+        "訳文のテキストをシェアします"
+      ],
+      "elementTypes": [
+        "group",
+        "button",
+        "text",
+        "text-field",
+        "compose.ui.platform.b1"
+      ],
+      "screenType": "detail",
+      "confidence": 0.9041131799999998,
+      "occurrences": 11,
+      "lastSeen": "2026-03-13T14:20:14.940Z"
     },
     {
       "keywords": [
@@ -95,9 +170,9 @@
         "button"
       ],
       "screenType": "settings",
-      "confidence": 0.9467194999999998,
-      "occurrences": 6,
-      "lastSeen": "2026-03-12T16:06:42.358Z"
+      "confidence": 0.9470475499999998,
+      "occurrences": 7,
+      "lastSeen": "2026-03-13T06:29:29.311Z"
     },
     {
       "keywords": [
@@ -117,9 +192,9 @@
         "image"
       ],
       "screenType": "list",
-      "confidence": 0.9257000000000001,
-      "occurrences": 4,
-      "lastSeen": "2026-03-12T16:06:42.358Z"
+      "confidence": 0.9282353,
+      "occurrences": 7,
+      "lastSeen": "2026-03-13T06:29:29.311Z"
     },
     {
       "keywords": [
@@ -193,13 +268,13 @@
       "pattern": "Simple",
       "description": "Simple",
       "indicators": [],
-      "occurrences": 4
+      "occurrences": 15
     },
     {
       "pattern": "Tab Navigation (Bottom)",
       "description": "Tab Navigation (Bottom)",
       "indicators": [],
-      "occurrences": 12
+      "occurrences": 13
     }
   ],
   "appProfiles": []
