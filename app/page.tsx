@@ -45,6 +45,13 @@ export default function Home() {
             category="Mobile"
           />
           <ToolCard
+            title="Meeting Recorder"
+            description="会議室の音声をローカル録音し、whisper.cppで文字起こし。AIが議事録を自動生成。"
+            icon={<MicIcon />}
+            href="/meeting"
+            category="Meeting"
+          />
+          <ToolCard
             title="Heuristic Evaluation"
             description="UIスクリーンショットからヒューリスティック評価を自動実行。改善提案も。"
             icon={<EvalIcon />}
@@ -98,6 +105,17 @@ function InspectorIcon() {
       <line x1="13" y1="25" x2="19" y2="25" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       <circle cx="16" cy="14" r="4" stroke="currentColor" strokeWidth="1.5" />
       <path d="M19 17l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function MicIcon() {
+  return (
+    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+      <rect x="11" y="4" width="10" height="16" rx="5" stroke="currentColor" strokeWidth="2" />
+      <path d="M7 16v2a9 9 0 0018 0v-2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <line x1="16" y1="27" x2="16" y2="30" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <line x1="12" y1="30" x2="20" y2="30" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
