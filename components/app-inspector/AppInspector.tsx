@@ -15,6 +15,9 @@ import ScreenDetail from "./ScreenDetail";
 import SummaryPanel from "./SummaryPanel";
 import AnalysisPanel from "./AnalysisPanel";
 import ReportPanel from "./ReportPanel";
+import WorkflowStepper from "./WorkflowStepper";
+import type { WorkflowStep } from "./WorkflowStepper";
+import type { InspectorReport } from "@/lib/app-inspector-schema";
 
 interface CaptureProgress {
   phase: string;
@@ -65,6 +68,8 @@ function AppInspectorInner() {
   const [error, setError] = useState<string | null>(null);
   const [captureLogPath, setCaptureLogPath] = useState<string | null>(null);
   const [analysisSnapshots, setAnalysisSnapshots] = useState<AnalysisSnapshot[]>([]);
+  const [workflowStep, setWorkflowStep] = useState<WorkflowStep>("capture");
+  const [sessionReport, setSessionReport] = useState<InspectorReport | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Load sessions
@@ -104,6 +109,9 @@ function AppInspectorInner() {
       // so analysis/report are immediately visible
       if (!isCapturing && (data.status === "completed" || data.status === "error") && capturePhase !== "review") {
         setCapturePhase("done");
+        const hasScreens = (data.screens || []).length > 0;
+        setWorkflowStep(deriveWorkflowStep("done", hasScreens, !!data.report));
+        if (data.report) setSessionReport(data.report);
       }
       // Update URL without full navigation
       router.push(`/app-inspector?session=${id}`, { scroll: false });
@@ -135,6 +143,7 @@ function AppInspectorInner() {
   const startCaptureStream = async (sessionId: string, maxScreens: number, mode: CaptureMode, userFeedback?: string) => {
     setIsCapturing(true);
     setCapturePhase("capturing");
+    setWorkflowStep("capture");
     setCaptureProgress([]);
     setCapturedScreens([]);
     setAnalysisSnapshots([]);
@@ -199,6 +208,7 @@ function AppInspectorInner() {
           }
           setIsCapturing(false);
           setCapturePhase("review");
+          setWorkflowStep("review");
           await loadSessions();
           await handleSelectSession(sessionId);
         }
@@ -255,7 +265,18 @@ function AppInspectorInner() {
   // User is satisfied — proceed to analysis/report
   const handleProceedToAnalysis = () => {
     setCapturePhase("done");
+    setWorkflowStep("report");
   };
+
+  // Derive workflow step from capturePhase when loading existing sessions
+  const deriveWorkflowStep = useCallback((phase: string, hasScreens: boolean, hasReport: boolean): WorkflowStep => {
+    if (phase === "capturing") return "capture";
+    if (phase === "review") return "review";
+    if (phase === "done" && hasReport) return "share";
+    if (phase === "done") return "report";
+    if (hasScreens) return "review";
+    return "capture";
+  }, []);
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
@@ -374,6 +395,20 @@ function AppInspectorInner() {
                 <CopySessionInfoButton sessionId={activeSession.id} appName={activeSession.appName} appPackage={activeSession.appPackage} />
               </div>
 
+              {/* Workflow stepper */}
+              <WorkflowStepper
+                currentStep={workflowStep}
+                onStepClick={(step) => {
+                  setWorkflowStep(step);
+                  // Allow going back to review from report/share
+                  if (step === "review" && capturePhase === "done") {
+                    setCapturePhase("review");
+                  }
+                }}
+                screenCount={(activeSession.screens || []).length}
+                hasReport={!!sessionReport || !!activeSession.report}
+              />
+
               {/* Video player */}
               {activeSession.videoPath && (
                 <div className="bg-surface rounded-2xl border border-border-light p-5">
@@ -400,73 +435,148 @@ function AppInspectorInner() {
                 </div>
               )}
 
-              {/* Capture activity — live progress during capture, completed log afterwards */}
-              <CaptureActivityPanel
-                isCapturing={isCapturing}
-                progress={captureProgress}
-                capturedScreens={capturedScreens}
-                logPath={captureLogPath}
-                captureLog={activeSession.captureLog}
-                sessionError={activeSession.error}
-                analysisSnapshots={analysisSnapshots}
-              />
+              {/* ── Step 1: Capture ─────────────────────────────────── */}
+              {workflowStep === "capture" && (
+                <>
+                  <CaptureActivityPanel
+                    isCapturing={isCapturing}
+                    progress={captureProgress}
+                    capturedScreens={capturedScreens}
+                    logPath={captureLogPath}
+                    captureLog={activeSession.captureLog}
+                    sessionError={activeSession.error}
+                    analysisSnapshots={analysisSnapshots}
+                  />
 
-              {/* Screen gallery — shown when screens exist */}
-              {(activeSession.screens || []).some((s) => s.screenshotPath) && (
-                <div className="space-y-6">
-                  {/* Summary */}
-                  {activeSession.summary && (
-                    <SummaryPanel summary={activeSession.summary} />
-                  )}
-
-                  <div>
-                    <h3 className="font-[family-name:var(--font-nunito)] text-sm font-bold text-text-primary mb-3">
-                      キャプチャ画面
-                    </h3>
-                    <ScreenGallery
-                      screens={(activeSession.screens || []).filter((s) => s.screenshotPath)}
-                      onSelectScreen={setSelectedScreen}
-                      selectedId={selectedScreen?.id || null}
-                    />
-                  </div>
-
-                  {/* External links */}
-                  <ExternalLinksPanel screens={activeSession.screens || []} />
-
-                  {/* Screen detail */}
-                  {selectedScreen && (
-                    <div className="bg-surface rounded-2xl border border-border-light p-5">
-                      <ScreenDetail screen={selectedScreen} />
+                  {/* Show captured screens so far */}
+                  {(activeSession.screens || []).some((s) => s.screenshotPath) && (
+                    <div>
+                      <h3 className="font-[family-name:var(--font-nunito)] text-sm font-bold text-text-primary mb-3">
+                        取得済み画面 ({(activeSession.screens || []).filter((s) => s.screenshotPath).length}画面)
+                      </h3>
+                      <ScreenGallery
+                        screens={(activeSession.screens || []).filter((s) => s.screenshotPath)}
+                        onSelectScreen={setSelectedScreen}
+                        selectedId={selectedScreen?.id || null}
+                      />
                     </div>
                   )}
-                </div>
+
+                  {/* Auto-advance hint when not capturing */}
+                  {!isCapturing && (activeSession.screens || []).length > 0 && (
+                    <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-green-800">キャプチャ完了</p>
+                        <p className="text-xs text-green-600 mt-0.5">{(activeSession.screens || []).length}画面を取得しました。確認画面に進みましょう。</p>
+                      </div>
+                      <button
+                        onClick={() => setWorkflowStep("review")}
+                        className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-xl hover:bg-green-700 transition-colors"
+                      >
+                        確認に進む
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
 
-              {/* Review panel — shown after capture completes, before analysis */}
-              {capturePhase === "review" && !isCapturing && (activeSession.screens || []).length > 0 && (
-                <CaptureReviewPanel
-                  screenCount={(activeSession.screens || []).length}
-                  lastAnalysis={analysisSnapshots[analysisSnapshots.length - 1] || null}
-                  onContinue={handleContinueCapture}
-                  onProceed={handleProceedToAnalysis}
-                />
+              {/* ── Step 2: Review ──────────────────────────────────── */}
+              {workflowStep === "review" && (
+                <>
+                  {/* Screen gallery with summary */}
+                  {(activeSession.screens || []).some((s) => s.screenshotPath) && (
+                    <div className="space-y-6">
+                      {activeSession.summary && (
+                        <SummaryPanel summary={activeSession.summary} />
+                      )}
+
+                      <div>
+                        <h3 className="font-[family-name:var(--font-nunito)] text-sm font-bold text-text-primary mb-3">
+                          取得済みスクリーンショット ({(activeSession.screens || []).filter((s) => s.screenshotPath).length}画面)
+                        </h3>
+                        <ScreenGallery
+                          screens={(activeSession.screens || []).filter((s) => s.screenshotPath)}
+                          onSelectScreen={setSelectedScreen}
+                          selectedId={selectedScreen?.id || null}
+                        />
+                      </div>
+
+                      <ExternalLinksPanel screens={activeSession.screens || []} />
+
+                      {selectedScreen && (
+                        <div className="bg-surface rounded-2xl border border-border-light p-5">
+                          <ScreenDetail screen={selectedScreen} />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Review decision panel */}
+                  {(activeSession.screens || []).length > 0 && (
+                    <CaptureReviewPanel
+                      screenCount={(activeSession.screens || []).length}
+                      lastAnalysis={analysisSnapshots[analysisSnapshots.length - 1] || null}
+                      onContinue={(feedback) => {
+                        setWorkflowStep("capture");
+                        handleContinueCapture(feedback);
+                      }}
+                      onProceed={handleProceedToAnalysis}
+                    />
+                  )}
+                </>
               )}
 
-              {/* Structure analysis — only after user proceeds */}
-              {capturePhase === "done" && (activeSession.screens || []).length > 0 && (
-                <AnalysisPanel sessionId={activeSession.id} />
+              {/* ── Step 3: Report ──────────────────────────────────── */}
+              {workflowStep === "report" && (activeSession.screens || []).length > 0 && (
+                <>
+                  <ReportPanel
+                    sessionId={activeSession.id}
+                    screens={activeSession.screens}
+                    onReportReady={(report) => {
+                      setSessionReport(report);
+                    }}
+                  />
+
+                  {/* Advance to share when report is ready */}
+                  {(sessionReport || activeSession.report) && (
+                    <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-indigo-800">レポート完成</p>
+                        <p className="text-xs text-indigo-600 mt-0.5">Competitor UI Viewer に登録して共有できます</p>
+                      </div>
+                      <button
+                        onClick={() => setWorkflowStep("share")}
+                        className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors"
+                      >
+                        登録・共有に進む
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
 
-              {/* Report — only after user proceeds */}
-              {capturePhase === "done" && (activeSession.screens || []).length > 0 && (
-                <div className="bg-white rounded-2xl shadow-sm border p-6">
-                  <ReportPanel sessionId={activeSession.id} />
-                </div>
-              )}
+              {/* ── Step 4: Share ────────────────────────────────────── */}
+              {workflowStep === "share" && (activeSession.screens || []).length > 0 && (
+                <>
+                  <RegisterButton sessionId={activeSession.id} appName={activeSession.appName} />
 
-              {/* Register to Competitor UI Viewer */}
-              {capturePhase === "done" && (activeSession.screens || []).length > 0 && (
-                <RegisterButton sessionId={activeSession.id} appName={activeSession.appName} />
+                  {/* Also show the report in read-only mode for reference */}
+                  <details className="group">
+                    <summary className="text-sm font-medium text-text-muted cursor-pointer hover:text-text-primary transition-colors flex items-center gap-2">
+                      <svg className="w-3.5 h-3.5 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path d="m9 18 6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      レポート内容を確認
+                    </summary>
+                    <div className="mt-4">
+                      <ReportPanel
+                        sessionId={activeSession.id}
+                        screens={activeSession.screens}
+                        onReportReady={(report) => setSessionReport(report)}
+                      />
+                    </div>
+                  </details>
+                </>
               )}
             </div>
           )}
