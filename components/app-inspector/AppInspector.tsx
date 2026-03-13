@@ -14,6 +14,7 @@ import ScreenGallery from "./ScreenGallery";
 import ScreenDetail from "./ScreenDetail";
 import SummaryPanel from "./SummaryPanel";
 import AnalysisPanel from "./AnalysisPanel";
+import ReportPanel from "./ReportPanel";
 
 interface CaptureProgress {
   phase: string;
@@ -24,6 +25,17 @@ interface CapturedScreenEvent {
   screenId: string;
   label: string;
   index: number;
+  screenshotPath?: string;
+}
+
+interface AnalysisSnapshot {
+  round: number;
+  coveredFeatures: string[];
+  uncapturedCount: number;
+  uncapturedTargets: { featureName: string; priority: number }[];
+  newDiscoveries: string[];
+  summary: string;
+  isComplete: boolean;
 }
 
 export default function AppInspector() {
@@ -45,12 +57,14 @@ function AppInspectorInner() {
   );
   const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
   const [selectedAppName, setSelectedAppName] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"gallery" | "analysis">("gallery");
+  // activeTab state removed — content flows vertically
   const [isCapturing, setIsCapturing] = useState(false);
+  const [capturePhase, setCapturePhase] = useState<"idle" | "capturing" | "review" | "done">("idle");
   const [captureProgress, setCaptureProgress] = useState<CaptureProgress[]>([]);
   const [capturedScreens, setCapturedScreens] = useState<CapturedScreenEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [captureLogPath, setCaptureLogPath] = useState<string | null>(null);
+  const [analysisSnapshots, setAnalysisSnapshots] = useState<AnalysisSnapshot[]>([]);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Load sessions
@@ -82,10 +96,15 @@ function AppInspectorInner() {
   const handleSelectSession = async (id: string) => {
     try {
       const res = await fetch(`/api/app-inspector/${id}`);
-      const data = await res.json();
+      const data = await res.json() as AppInspectorSession;
       setActiveSession(data);
       setSelectedScreen(null);
       setError(null);
+      // If the session is already completed/errored (loaded from history), go to "done" phase
+      // so analysis/report are immediately visible
+      if (!isCapturing && (data.status === "completed" || data.status === "error") && capturePhase !== "review") {
+        setCapturePhase("done");
+      }
       // Update URL without full navigation
       router.push(`/app-inspector?session=${id}`, { scroll: false });
     } catch {
@@ -113,10 +132,12 @@ function AppInspectorInner() {
   };
 
   // Start capture and poll for progress
-  const startCaptureStream = async (sessionId: string, maxScreens: number, mode: CaptureMode) => {
+  const startCaptureStream = async (sessionId: string, maxScreens: number, mode: CaptureMode, userFeedback?: string) => {
     setIsCapturing(true);
+    setCapturePhase("capturing");
     setCaptureProgress([]);
     setCapturedScreens([]);
+    setAnalysisSnapshots([]);
     setError(null);
 
     // Stop any existing polling
@@ -130,7 +151,7 @@ function AppInspectorInner() {
       const res = await fetch(`/api/app-inspector/${sessionId}/capture/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ maxScreens, mode }),
+        body: JSON.stringify({ maxScreens, mode, userFeedback }),
       });
       if (!res.ok) {
         const err = await res.json();
@@ -161,8 +182,12 @@ function AppInspectorInner() {
             setCapturedScreens((prev) => [...prev, entry.data as unknown as CapturedScreenEvent]);
           } else if (entry.event === "log-path") {
             setCaptureLogPath((entry.data as { logPath?: string }).logPath || null);
+          } else if (entry.event === "analysis-result") {
+            setAnalysisSnapshots((prev) => [...prev, entry.data as unknown as AnalysisSnapshot]);
           } else if (entry.event === "error") {
-            setError((entry.data as { message?: string }).message || "Capture failed");
+            const errMsg = (entry.data as { message?: string }).message || "Capture failed";
+            setError(errMsg);
+            setCaptureProgress((prev) => [...prev, { phase: "error", message: errMsg }]);
           }
         }
         cursor = total;
@@ -173,6 +198,7 @@ function AppInspectorInner() {
             pollingRef.current = null;
           }
           setIsCapturing(false);
+          setCapturePhase("review");
           await loadSessions();
           await handleSelectSession(sessionId);
         }
@@ -202,10 +228,13 @@ function AppInspectorInner() {
           deviceName: "default",
         }),
       });
-      const { id } = await createRes.json();
+      const newSession = await createRes.json();
+
+      // Select the new session immediately so the UI shows it
+      await handleSelectSession(newSession.id);
 
       // Start capture with polling
-      await startCaptureStream(id, maxScreens, mode);
+      await startCaptureStream(newSession.id, maxScreens, mode);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Capture failed");
     }
@@ -215,6 +244,17 @@ function AppInspectorInner() {
   const handleAppendCapture = async (mode: CaptureMode, maxScreens: number) => {
     if (!activeSession) return;
     await startCaptureStream(activeSession.id, maxScreens, mode);
+  };
+
+  // Continue capture with user feedback
+  const handleContinueCapture = async (feedback: string) => {
+    if (!activeSession) return;
+    await startCaptureStream(activeSession.id, 30, "both", feedback);
+  };
+
+  // User is satisfied — proceed to analysis/report
+  const handleProceedToAnalysis = () => {
+    setCapturePhase("done");
   };
 
   return (
@@ -233,11 +273,6 @@ function AppInspectorInner() {
         <div className="mb-4 px-4 py-3 bg-error/10 border border-error/20 rounded-xl text-sm text-error">
           {error}
         </div>
-      )}
-
-      {/* Capture progress panel */}
-      {isCapturing && captureProgress.length > 0 && (
-        <CaptureProgressPanel progress={captureProgress} capturedScreens={capturedScreens} logPath={captureLogPath} />
       )}
 
       <div className="flex gap-6">
@@ -273,6 +308,8 @@ function AppInspectorInner() {
                 setSelectedAppName(null);
               }}
               hasActiveSession={!!activeSession}
+              activeSessionName={activeSession?.appName}
+              activeSessionScreenCount={activeSession?.screens?.length ?? 0}
             />
           </div>
 
@@ -362,57 +399,38 @@ function AppInspectorInner() {
                 </div>
               )}
 
-              {/* Capture log */}
-              {activeSession.captureLog && activeSession.captureLog.length > 0 && (
-                <details className="bg-card rounded-xl border border-border-light">
-                  <summary className="px-4 py-2.5 text-xs font-medium text-text-secondary cursor-pointer hover:text-text-primary">
-                    Capture Log ({activeSession.captureLog.length} entries)
-                  </summary>
-                  <div className="px-4 pb-3 max-h-48 overflow-y-auto">
-                    <pre className="text-[10px] text-text-muted font-mono leading-relaxed whitespace-pre-wrap">
-                      {activeSession.captureLog.join("\n")}
-                    </pre>
-                  </div>
-                </details>
-              )}
+              {/* Capture activity — live progress during capture, completed log afterwards */}
+              <CaptureActivityPanel
+                isCapturing={isCapturing}
+                progress={captureProgress}
+                capturedScreens={capturedScreens}
+                logPath={captureLogPath}
+                captureLog={activeSession.captureLog}
+                sessionError={activeSession.error}
+                analysisSnapshots={analysisSnapshots}
+              />
 
-              {/* Tabs */}
-              <div className="flex gap-1 bg-card rounded-xl p-1 border border-border-light">
-                <TabButton
-                  active={activeTab === "gallery"}
-                  onClick={() => setActiveTab("gallery")}
-                >
-                  キャプチャ画面
-                </TabButton>
-                <TabButton
-                  active={activeTab === "analysis"}
-                  onClick={() => setActiveTab("analysis")}
-                >
-                  構造分析
-                </TabButton>
-              </div>
-
-              {activeTab === "gallery" ? (
-                <>
+              {/* Screen gallery — shown when screens exist */}
+              {(activeSession.screens || []).some((s) => s.screenshotPath) && (
+                <div className="space-y-6">
                   {/* Summary */}
                   {activeSession.summary && (
                     <SummaryPanel summary={activeSession.summary} />
                   )}
 
-                  {/* Screen gallery */}
                   <div>
                     <h3 className="font-[family-name:var(--font-nunito)] text-sm font-bold text-text-primary mb-3">
-                      Captured Screens
+                      キャプチャ画面
                     </h3>
                     <ScreenGallery
-                      screens={activeSession.screens.filter((s) => s.screenshotPath)}
+                      screens={(activeSession.screens || []).filter((s) => s.screenshotPath)}
                       onSelectScreen={setSelectedScreen}
                       selectedId={selectedScreen?.id || null}
                     />
                   </div>
 
                   {/* External links */}
-                  <ExternalLinksPanel screens={activeSession.screens} />
+                  <ExternalLinksPanel screens={activeSession.screens || []} />
 
                   {/* Screen detail */}
                   {selectedScreen && (
@@ -420,9 +438,29 @@ function AppInspectorInner() {
                       <ScreenDetail screen={selectedScreen} />
                     </div>
                   )}
-                </>
-              ) : (
+                </div>
+              )}
+
+              {/* Review panel — shown after capture completes, before analysis */}
+              {capturePhase === "review" && !isCapturing && (activeSession.screens || []).length > 0 && (
+                <CaptureReviewPanel
+                  screenCount={(activeSession.screens || []).length}
+                  lastAnalysis={analysisSnapshots[analysisSnapshots.length - 1] || null}
+                  onContinue={handleContinueCapture}
+                  onProceed={handleProceedToAnalysis}
+                />
+              )}
+
+              {/* Structure analysis — only after user proceeds */}
+              {capturePhase === "done" && (activeSession.screens || []).length > 0 && (
                 <AnalysisPanel sessionId={activeSession.id} />
+              )}
+
+              {/* Report — only after user proceeds */}
+              {capturePhase === "done" && (activeSession.screens || []).length > 0 && (
+                <div className="bg-white rounded-2xl shadow-sm border p-6">
+                  <ReportPanel sessionId={activeSession.id} />
+                </div>
               )}
             </div>
           )}
@@ -432,31 +470,6 @@ function AppInspectorInner() {
   );
 }
 
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`
-        flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors
-        ${active
-          ? "bg-surface text-text-primary shadow-sm"
-          : "text-text-muted hover:text-text-secondary"
-        }
-      `}
-    >
-      {children}
-    </button>
-  );
-}
 
 function ExternalLinksPanel({ screens }: { screens: { notes?: string }[] }) {
   // Parse external links from screen notes
@@ -522,6 +535,7 @@ const CAPTURE_PHASE_LABELS: Record<string, string> = {
   target: "ターゲット操作",
   summary: "サマリー生成",
   complete: "完了",
+  error: "エラー",
 };
 
 /** round-N-analysis / round-N-capture を動的にマッチ */
@@ -534,94 +548,346 @@ function getPhaseLabelDynamic(phase: string): string {
   return phase;
 }
 
-function CaptureProgressPanel({
+function CaptureActivityPanel({
+  isCapturing,
   progress,
   capturedScreens,
   logPath,
+  captureLog,
+  sessionError,
+  analysisSnapshots = [],
 }: {
+  isCapturing: boolean;
   progress: CaptureProgress[];
   capturedScreens: CapturedScreenEvent[];
   logPath: string | null;
+  captureLog?: string[];
+  sessionError?: string;
+  analysisSnapshots?: AnalysisSnapshot[];
 }) {
-  return (
-    <div className="mb-4 bg-surface rounded-2xl border border-border-light p-5">
-      <div className="flex items-center gap-3 mb-2">
-        <span className="inline-block w-5 h-5 border-2 border-accent-leaf/30 border-t-accent-leaf rounded-full animate-spin" />
-        <span className="text-sm font-medium text-text-primary">
-          キャプチャ実行中...
-        </span>
-        {capturedScreens.length > 0 && (
-          <span className="text-xs text-text-muted ml-auto">
-            {capturedScreens.length} screens captured
+  // During capture: show live progress (or initial "starting" state)
+  if (isCapturing) {
+    return (
+      <div className="bg-surface rounded-2xl border border-accent-leaf/30 p-5">
+        <div className="flex items-center gap-3 mb-2">
+          <span className="inline-block w-5 h-5 border-2 border-accent-leaf/30 border-t-accent-leaf rounded-full animate-spin" />
+          <span className="text-sm font-medium text-text-primary">
+            キャプチャ実行中...
           </span>
+          {capturedScreens.length > 0 && (
+            <span className="text-xs text-text-muted ml-auto">
+              {capturedScreens.length} 画面取得済み
+            </span>
+          )}
+        </div>
+        {logPath && (
+          <div className="mb-3 px-3 py-1.5 bg-card rounded-lg">
+            <span className="text-[10px] text-text-muted font-mono break-all select-all">
+              Log: {logPath}
+            </span>
+          </div>
+        )}
+
+        {/* Progress pipeline — deduplicate same-phase entries */}
+        <div className="space-y-1.5 mb-3">
+          {progress.length === 0 ? (
+            <div className="flex items-start gap-2 text-xs text-text-primary">
+              <span className="w-4 shrink-0 text-center mt-0.5">
+                <span className="inline-block w-2 h-2 bg-accent-leaf rounded-full animate-pulse" />
+              </span>
+              <span className="font-medium w-16 shrink-0">準備中</span>
+              <span>キャプチャを開始しています...</span>
+            </div>
+          ) : (
+            (() => {
+              const deduped: CaptureProgress[] = [];
+              for (const step of progress) {
+                const last = deduped[deduped.length - 1];
+                if (last && last.phase === step.phase) {
+                  deduped[deduped.length - 1] = step;
+                } else {
+                  deduped.push({ ...step });
+                }
+              }
+              return deduped.map((step, i) => {
+                const isLatest = i === deduped.length - 1;
+                const isError = step.phase === "error";
+                const phaseLabel = getPhaseLabelDynamic(step.phase);
+                return (
+                  <div
+                    key={`${step.phase}-${i}`}
+                    className={`flex items-start gap-2 text-xs ${
+                      isError ? "text-error" : isLatest ? "text-text-primary" : "text-text-muted"
+                    }`}
+                  >
+                    <span className="w-4 shrink-0 text-center mt-0.5">
+                      {isError ? (
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-error">
+                          <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.2" />
+                          <path d="M4 4l4 4M8 4l-4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                        </svg>
+                      ) : isLatest ? (
+                        <span className="inline-block w-2 h-2 bg-accent-leaf rounded-full animate-pulse" />
+                      ) : (
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-success">
+                          <path d="M2.5 6l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </span>
+                    <span className={`font-medium w-16 shrink-0 ${isError ? "text-error" : ""}`}>{phaseLabel}</span>
+                    <span className="break-words min-w-0">{step.message}</span>
+                  </div>
+                );
+              });
+            })()
+          )}
+        </div>
+
+        {/* Intermediate output — screenshots + analysis */}
+        {capturedScreens.length > 0 && (
+          <div className="border-t border-border-light pt-3 space-y-3">
+            <div className="text-[10px] text-text-muted uppercase tracking-wide font-semibold">
+              中間アウトプット — {capturedScreens.length} 画面取得済み
+            </div>
+
+            {/* Screenshot thumbnails */}
+            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2">
+              {capturedScreens.map((s) => (
+                <div key={s.screenId} className="group relative">
+                  {s.screenshotPath ? (
+                    <img
+                      src={s.screenshotPath}
+                      alt={s.label}
+                      className="w-full aspect-[9/16] object-cover rounded-lg border border-border-light bg-card"
+                    />
+                  ) : (
+                    <div className="w-full aspect-[9/16] rounded-lg border border-border-light bg-card flex items-center justify-center">
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-text-muted">
+                        <rect x="3" y="2" width="10" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+                        <circle cx="8" cy="7" r="2" stroke="currentColor" strokeWidth="1" />
+                      </svg>
+                    </div>
+                  )}
+                  <div className="mt-1 text-[10px] text-text-muted truncate text-center" title={s.label}>
+                    {s.label}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Analysis snapshots from each round */}
+            {analysisSnapshots.length > 0 && (
+              <div className="space-y-2">
+                {analysisSnapshots.map((snap) => (
+                  <div key={snap.round} className="bg-card rounded-lg border border-border-light p-3">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-[10px] font-semibold text-accent-leaf px-1.5 py-0.5 bg-accent-leaf/10 rounded">
+                        R{snap.round}
+                      </span>
+                      <span className="text-[11px] text-text-primary font-medium">
+                        AI分析結果
+                      </span>
+                      <span className="text-[10px] text-text-muted ml-auto">
+                        把握 {snap.coveredFeatures.length}件 / 未取得 {snap.uncapturedCount}件
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-text-secondary mb-2">{snap.summary}</p>
+                    {snap.uncapturedTargets.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {snap.uncapturedTargets.map((t) => (
+                          <span
+                            key={t.featureName}
+                            className="text-[10px] px-1.5 py-0.5 bg-warning/10 text-accent-bark rounded border border-warning/20"
+                          >
+                            {t.featureName}
+                          </span>
+                        ))}
+                        {snap.uncapturedCount > snap.uncapturedTargets.length && (
+                          <span className="text-[10px] text-text-muted">
+                            +{snap.uncapturedCount - snap.uncapturedTargets.length}件
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {snap.isComplete && (
+                      <div className="text-[10px] text-success font-medium mt-1.5 flex items-center gap-1">
+                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                          <path d="M2 5l2 2 4-4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        すべての主要機能をカバー
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </div>
-      {logPath && (
-        <div className="mb-3 px-3 py-1.5 bg-card rounded-lg">
-          <span className="text-[10px] text-text-muted font-mono break-all select-all">
-            Log: {logPath}
-          </span>
+    );
+  }
+
+  // After capture: show completed log (collapsible)
+  if (!captureLog || captureLog.length === 0) return null;
+
+  return (
+    <details className={`rounded-xl border ${sessionError ? "bg-error/5 border-error/20" : "bg-card border-border-light"}`}>
+      <summary className="px-4 py-2.5 text-xs font-medium text-text-secondary cursor-pointer hover:text-text-primary flex items-center gap-2">
+        {sessionError ? (
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-error shrink-0">
+            <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.2" />
+            <path d="M6 3.5v3M6 8v.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          </svg>
+        ) : (
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-success shrink-0">
+            <path d="M2.5 6l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+        <span>{sessionError ? "キャプチャエラー" : "キャプチャ完了"} ({captureLog.length} entries)</span>
+      </summary>
+      {sessionError && (
+        <div className="mx-4 mt-2 px-3 py-2 bg-error/10 rounded-lg text-xs text-error break-words">
+          {sessionError}
         </div>
       )}
+      <div className="px-4 pb-3 max-h-48 overflow-y-auto">
+        <pre className="text-[10px] text-text-muted font-mono leading-relaxed whitespace-pre-wrap">
+          {captureLog.join("\n")}
+        </pre>
+      </div>
+    </details>
+  );
+}
 
-      {/* Progress pipeline — deduplicate same-phase entries, show latest message */}
-      <div className="space-y-1.5 mb-3">
-        {(() => {
-          // Collapse consecutive same-phase entries to the latest one
-          const deduped: CaptureProgress[] = [];
-          for (const step of progress) {
-            const last = deduped[deduped.length - 1];
-            if (last && last.phase === step.phase) {
-              deduped[deduped.length - 1] = step; // overwrite with latest
-            } else {
-              deduped.push({ ...step });
-            }
-          }
-          return deduped.map((step, i) => {
-            const isLatest = i === deduped.length - 1;
-            const phaseLabel = getPhaseLabelDynamic(step.phase);
-            return (
-              <div
-                key={`${step.phase}-${i}`}
-                className={`flex items-start gap-2 text-xs ${
-                  isLatest ? "text-text-primary" : "text-text-muted"
-                }`}
-              >
-                <span className="w-4 shrink-0 text-center mt-0.5">
-                  {isLatest ? (
-                    <span className="inline-block w-2 h-2 bg-accent-leaf rounded-full animate-pulse" />
-                  ) : (
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-success">
-                      <path d="M2.5 6l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  )}
-                </span>
-                <span className="font-medium w-16 shrink-0">{phaseLabel}</span>
-                <span className="break-words min-w-0">{step.message}</span>
-              </div>
-            );
-          });
-        })()}
+function CaptureReviewPanel({
+  screenCount,
+  lastAnalysis,
+  onContinue,
+  onProceed,
+}: {
+  screenCount: number;
+  lastAnalysis: AnalysisSnapshot | null;
+  onContinue: (feedback: string) => void;
+  onProceed: () => void;
+}) {
+  const [feedback, setFeedback] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleContinue = () => {
+    if (!feedback.trim()) return;
+    setIsSubmitting(true);
+    onContinue(feedback.trim());
+  };
+
+  return (
+    <div className="bg-surface rounded-2xl border-2 border-accent-leaf/40 p-6 space-y-5">
+      {/* Header */}
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 bg-accent-leaf/10 rounded-xl flex items-center justify-center shrink-0">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="text-accent-leaf">
+            <path d="M10 2a8 8 0 100 16 8 8 0 000-16z" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M10 6v4l2.5 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+        <div>
+          <h3 className="font-[family-name:var(--font-nunito)] text-base font-bold text-text-primary">
+            キャプチャ完了 — 続けますか？
+          </h3>
+          <p className="text-sm text-text-secondary mt-0.5">
+            現在 <span className="font-semibold text-accent-leaf">{screenCount}画面</span> を取得しています。
+            さらにキャプチャを追加するか、分析に進むかを選んでください。
+          </p>
+        </div>
       </div>
 
-      {/* Captured screens list */}
-      {capturedScreens.length > 0 && (
-        <div className="border-t border-border-light pt-3">
-          <div className="text-[10px] text-text-muted uppercase tracking-wide mb-1.5">
-            取得済み画面
+      {/* Last analysis summary */}
+      {lastAnalysis && (
+        <div className="bg-card rounded-xl border border-border-light p-4 space-y-2">
+          <div className="flex items-center gap-2 text-xs">
+            <span className="font-semibold text-accent-leaf px-1.5 py-0.5 bg-accent-leaf/10 rounded">
+              AI分析
+            </span>
+            <span className="text-text-muted">
+              把握済み {lastAnalysis.coveredFeatures.length}件 / 未取得 {lastAnalysis.uncapturedCount}件
+            </span>
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            {capturedScreens.map((s) => (
-              <span
-                key={s.screenId}
-                className="text-[11px] px-2 py-1 bg-accent-leaf/10 text-accent-leaf rounded-lg"
-              >
-                {s.label}
-              </span>
-            ))}
-          </div>
+          <p className="text-xs text-text-secondary">{lastAnalysis.summary}</p>
+          {lastAnalysis.uncapturedTargets.length > 0 && (
+            <div>
+              <div className="text-[10px] text-text-muted mb-1 uppercase tracking-wide">未取得ターゲット:</div>
+              <div className="flex flex-wrap gap-1">
+                {lastAnalysis.uncapturedTargets.map((t) => (
+                  <span
+                    key={t.featureName}
+                    className="text-[10px] px-1.5 py-0.5 bg-warning/10 text-accent-bark rounded border border-warning/20"
+                  >
+                    {t.featureName} (P{t.priority})
+                  </span>
+                ))}
+                {lastAnalysis.uncapturedCount > lastAnalysis.uncapturedTargets.length && (
+                  <span className="text-[10px] text-text-muted">
+                    +{lastAnalysis.uncapturedCount - lastAnalysis.uncapturedTargets.length}件
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+          {lastAnalysis.isComplete && (
+            <div className="text-xs text-success font-medium flex items-center gap-1">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M2.5 6l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              AIは主要機能をカバー済みと判定しています
+            </div>
+          )}
         </div>
       )}
+
+      {/* Feedback input */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-text-primary block">
+          追加キャプチャの指示（任意）
+        </label>
+        <textarea
+          value={feedback}
+          onChange={(e) => setFeedback(e.target.value)}
+          placeholder="例: 設定画面の中をもっと詳しく見てほしい、マップ機能のすべての画面を取得してほしい、ログイン後の画面がまだ取れていない..."
+          className="w-full px-3 py-2.5 text-sm border border-border-light rounded-xl bg-white resize-none focus:outline-none focus:ring-2 focus:ring-accent-leaf/30 focus:border-accent-leaf placeholder:text-text-muted"
+          rows={3}
+          disabled={isSubmitting}
+        />
+      </div>
+
+      {/* Action buttons */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleContinue}
+          disabled={!feedback.trim() || isSubmitting}
+          className="px-4 py-2.5 bg-accent-leaf text-white rounded-xl hover:bg-accent-leaf/90 transition-colors text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+        >
+          {isSubmitting ? (
+            <>
+              <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              キャプチャ中...
+            </>
+          ) : (
+            <>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              追加キャプチャを実行
+            </>
+          )}
+        </button>
+
+        <button
+          onClick={onProceed}
+          disabled={isSubmitting}
+          className="px-4 py-2.5 border border-border-light text-text-secondary rounded-xl hover:bg-card transition-colors text-sm font-medium disabled:opacity-40"
+        >
+          このまま分析に進む
+        </button>
+      </div>
     </div>
   );
 }

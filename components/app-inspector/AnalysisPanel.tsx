@@ -100,6 +100,7 @@ export default function AnalysisPanel({ sessionId }: Props) {
     };
   }, [sessionId]);
 
+  // Auto-run analysis on mount
   useEffect(() => {
     runStreamingAnalysis();
     return () => {
@@ -119,19 +120,30 @@ export default function AnalysisPanel({ sessionId }: Props) {
             </span>
           </div>
 
-          {/* Progress pipeline */}
+          {/* Progress pipeline — deduplicate same-phase entries */}
           <div className="space-y-1.5">
-            {progress.map((step, i) => {
-              const isLatest = i === progress.length - 1;
+            {(() => {
+              const deduped: ProgressStep[] = [];
+              for (const step of progress) {
+                const last = deduped[deduped.length - 1];
+                if (last && last.phase === step.phase) {
+                  deduped[deduped.length - 1] = step;
+                } else {
+                  deduped.push({ ...step });
+                }
+              }
+              return deduped;
+            })().map((step, i, arr) => {
+              const isLatest = i === arr.length - 1;
               const phaseLabel = PHASE_LABELS[step.phase] || step.phase;
               return (
                 <div
                   key={i}
-                  className={`flex items-center gap-2 text-xs ${
+                  className={`flex items-start gap-2 text-xs ${
                     isLatest ? "text-text-primary" : "text-text-muted"
                   }`}
                 >
-                  <span className="w-4 shrink-0 text-center">
+                  <span className="w-4 shrink-0 text-center mt-0.5">
                     {isLatest ? (
                       <span className="inline-block w-2 h-2 bg-accent-leaf rounded-full animate-pulse" />
                     ) : (
@@ -141,7 +153,7 @@ export default function AnalysisPanel({ sessionId }: Props) {
                     )}
                   </span>
                   <span className="font-medium w-16 shrink-0">{phaseLabel}</span>
-                  <span className="truncate">{step.message}</span>
+                  <span className="break-words min-w-0">{step.message}</span>
                 </div>
               );
             })}
@@ -164,6 +176,13 @@ export default function AnalysisPanel({ sessionId }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* Section heading */}
+      <div className="flex items-center justify-between">
+        <h3 className="font-[family-name:var(--font-nunito)] text-sm font-bold text-text-primary">
+          構造分析
+        </h3>
+      </div>
+
       {/* Analysis method badge + re-run buttons */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">

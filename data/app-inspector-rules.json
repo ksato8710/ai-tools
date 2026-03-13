@@ -1,8 +1,56 @@
 {
   "version": 1,
-  "lastUpdated": "2026-03-12T06:11:52.572Z",
-  "totalAnalyses": 8,
+  "lastUpdated": "2026-03-12T16:06:42.357Z",
+  "totalAnalyses": 16,
   "screenTypePatterns": [
+    {
+      "keywords": [
+        "たまポン",
+        "行政P/商品券",
+        "さいコイン",
+        "さい&#10;コイン",
+        "一覧",
+        "チャージ",
+        "使う",
+        "履歴",
+        "ごみ出し&#10;カレンダー",
+        "図書館利用者&#10;カード"
+      ],
+      "elementTypes": [
+        "group",
+        "image",
+        "scroll-area",
+        "button"
+      ],
+      "screenType": "home",
+      "confidence": 0.9494358337571449,
+      "occurrences": 17,
+      "lastSeen": "2026-03-12T16:06:42.358Z"
+    },
+    {
+      "keywords": [
+        "戻る",
+        "請求書払いメニュー",
+        "請求書を読み取る",
+        "請求書払い履歴",
+        "・後期高齢者医療保険料（普通徴収）",
+        "タブ: 2/3",
+        "ホーム",
+        "チャージ",
+        "ご希望の項目を選択してください",
+        "さいコイン"
+      ],
+      "elementTypes": [
+        "group",
+        "button",
+        "image",
+        "scroll-area"
+      ],
+      "screenType": "detail",
+      "confidence": 0.9203470698197999,
+      "occurrences": 13,
+      "lastSeen": "2026-03-12T16:06:42.358Z"
+    },
     {
       "keywords": [
         "充電完了",
@@ -29,30 +77,6 @@
     },
     {
       "keywords": [
-        "たまポン",
-        "行政P/商品券",
-        "さいコイン",
-        "さい&#10;コイン",
-        "一覧",
-        "チャージ",
-        "使う",
-        "履歴",
-        "ごみ出し&#10;カレンダー",
-        "図書館利用者&#10;カード"
-      ],
-      "elementTypes": [
-        "group",
-        "image",
-        "scroll-area",
-        "button"
-      ],
-      "screenType": "home",
-      "confidence": 0.942305,
-      "occurrences": 8,
-      "lastSeen": "2026-03-12T06:11:52.573Z"
-    },
-    {
-      "keywords": [
         "お客様情報",
         "送付先情報",
         "セキュリティ",
@@ -71,9 +95,31 @@
         "button"
       ],
       "screenType": "settings",
-      "confidence": 0.9454999999999999,
-      "occurrences": 3,
-      "lastSeen": "2026-03-12T06:11:52.573Z"
+      "confidence": 0.9467194999999998,
+      "occurrences": 6,
+      "lastSeen": "2026-03-12T16:06:42.358Z"
+    },
+    {
+      "keywords": [
+        "戻る",
+        "履歴",
+        "たまポン&#10;タブ: 1/3",
+        "行政P/商品券&#10;タブ: 2/3",
+        "さいコイン&#10;タブ: 3/3",
+        "タブ: 2/3",
+        "ホーム",
+        "加盟店一覧",
+        "絞り込み",
+        "一覧で見る"
+      ],
+      "elementTypes": [
+        "group",
+        "image"
+      ],
+      "screenType": "list",
+      "confidence": 0.9257000000000001,
+      "occurrences": 4,
+      "lastSeen": "2026-03-12T16:06:42.358Z"
     },
     {
       "keywords": [
@@ -95,9 +141,29 @@
         "button"
       ],
       "screenType": "notification",
-      "confidence": 0.9,
+      "confidence": 0.898,
+      "occurrences": 3,
+      "lastSeen": "2026-03-12T16:06:42.358Z"
+    },
+    {
+      "keywords": [
+        "ウェブ表示",
+        "ホームページを開く",
+        "この接続は保護されています",
+        "新しいタブ",
+        "3　個のタブを表示",
+        "Google Chrome の設定"
+      ],
+      "elementTypes": [
+        "group",
+        "button",
+        "image",
+        "text-field"
+      ],
+      "screenType": "detail",
+      "confidence": 0.85,
       "occurrences": 2,
-      "lastSeen": "2026-03-12T06:11:52.573Z"
+      "lastSeen": "2026-03-12T14:11:16.833Z"
     },
     {
       "keywords": [
@@ -133,7 +199,7 @@
       "pattern": "Tab Navigation (Bottom)",
       "description": "Tab Navigation (Bottom)",
       "indicators": [],
-      "occurrences": 4
+      "occurrences": 12
     }
   ],
   "appProfiles": []

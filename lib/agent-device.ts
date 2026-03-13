@@ -11,6 +11,50 @@ const execFileAsync = promisify(execFile);
 const AGENT_DEVICE = "npx";
 const AGENT_DEVICE_ARGS = ["agent-device"];
 
+/** Wait for ADB device to become available (up to timeoutMs) */
+export async function waitForDevice(timeoutMs = 15000): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      await execFileAsync("adb", ["devices"], { timeout: 5000 });
+      const { stdout } = await execFileAsync("adb", ["get-state"], { timeout: 5000 });
+      if (stdout.trim() === "device") return true;
+    } catch { /* retry */ }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  return false;
+}
+
+/** Run a function with retry + ADB reconnection on failure */
+async function runWithRetry<T>(
+  fn: () => Promise<T>,
+  label: string,
+  maxRetries = 2,
+  retryDelayMs = 3000,
+): Promise<T> {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      const msg = lastError.message.toLowerCase();
+      const isAdbError = msg.includes("device not found") || msg.includes("no devices") ||
+        msg.includes("device offline") || msg.includes("closed") || msg.includes("connection reset");
+
+      if (!isAdbError || attempt >= maxRetries) throw lastError;
+
+      console.warn(`[ADB Retry] ${label} attempt ${attempt + 1} failed: ${lastError.message}`);
+      // Try to reconnect
+      try { await execFileAsync("adb", ["reconnect"], { timeout: 5000 }); } catch { /* ignore */ }
+      const recovered = await waitForDevice(10000);
+      if (!recovered) throw new Error(`ADB device lost during ${label}`);
+      await new Promise((r) => setTimeout(r, retryDelayMs));
+    }
+  }
+  throw lastError || new Error(`${label} failed after retries`);
+}
+
 async function run(
   args: string[],
   timeoutMs = 30000
@@ -48,7 +92,7 @@ export async function openApp(packageName: string): Promise<string> {
 }
 
 export async function takeScreenshot(filePath: string): Promise<void> {
-  await run(["screenshot", filePath], 15000);
+  await runWithRetry(() => run(["screenshot", filePath], 15000), "takeScreenshot");
 }
 
 export async function takeSnapshot(
@@ -56,28 +100,28 @@ export async function takeSnapshot(
 ): Promise<string> {
   const args = ["snapshot"];
   if (interactiveOnly) args.push("-i");
-  const { stdout } = await run(args, 15000);
+  const { stdout } = await runWithRetry(() => run(args, 15000), "takeSnapshot");
   return stdout;
 }
 
 export async function pressElement(ref: string): Promise<void> {
-  await run(["press", ref], 10000);
+  await runWithRetry(() => run(["press", ref], 10000), "pressElement");
 }
 
 export async function scrollDown(): Promise<void> {
-  await run(["scroll", "down"], 10000);
+  await runWithRetry(() => run(["scroll", "down"], 10000), "scrollDown");
 }
 
 export async function scrollUp(): Promise<void> {
-  await run(["scroll", "up"], 10000);
+  await runWithRetry(() => run(["scroll", "up"], 10000), "scrollUp");
 }
 
 export async function goBack(): Promise<void> {
-  await run(["back"], 5000);
+  await runWithRetry(() => run(["back"], 5000), "goBack");
 }
 
 export async function goHome(): Promise<void> {
-  await run(["home"], 5000);
+  await runWithRetry(() => run(["home"], 5000), "goHome");
 }
 
 /** Get the package name of the currently focused (foreground) app */

@@ -90,6 +90,93 @@ export default function PresentationSessionList({
         </div>
       </details>
 
+      {/* Reference sites */}
+      <details className="mb-10 bg-white rounded-2xl border border-border-light overflow-hidden">
+        <summary className="px-6 py-4 cursor-pointer hover:bg-cream transition-colors font-[family-name:var(--font-nunito)] font-bold text-text-primary">
+          Reference: コンサルティングファームの公開プレゼン資料
+        </summary>
+        <div className="px-6 pb-6 space-y-5">
+          <p className="text-sm text-text-secondary">
+            スライドデザイン・構成の参考になる、一流コンサルティングファームの公開資料集です。
+          </p>
+
+          <div>
+            <h4 className="text-xs font-bold tracking-widest uppercase text-text-muted mb-2">
+              MBB
+            </h4>
+            <div className="space-y-1.5">
+              <RefLink
+                label="McKinsey — Featured Insights"
+                url="https://www.mckinsey.com/featured-insights"
+                note="MGIレポートがスライドデッキ形式で最も充実"
+              />
+              <RefLink
+                label="McKinsey Global Institute (MGI)"
+                url="https://www.mckinsey.com/mgi"
+                note="経済・テクノロジー・社会のPDFレポート"
+              />
+              <RefLink
+                label="BCG — Publications"
+                url="https://www.bcg.com/publications"
+                note="デザイン品質の高いPDFレポートが多数"
+              />
+              <RefLink
+                label="Bain — Insights"
+                url="https://www.bain.com/insights/"
+                note="独自データとエキスパート分析"
+              />
+            </div>
+          </div>
+
+          <div>
+            <h4 className="text-xs font-bold tracking-widest uppercase text-text-muted mb-2">
+              Big Four
+            </h4>
+            <div className="space-y-1.5">
+              <RefLink
+                label="Deloitte Insights"
+                url="https://www.deloitte.com/us/en/insights.html"
+              />
+              <RefLink
+                label="PwC — Research & Insights"
+                url="https://www.pwc.com/us/en/library.html"
+              />
+              <RefLink
+                label="EY — Insights"
+                url="https://www.ey.com/en_us/insights"
+              />
+              <RefLink
+                label="KPMG — Insights"
+                url="https://kpmg.com/us/en/insights-and-resources.html"
+              />
+            </div>
+          </div>
+
+          <div>
+            <h4 className="text-xs font-bold tracking-widest uppercase text-text-muted mb-2">
+              実際のスライドデッキ・コレクション
+            </h4>
+            <div className="space-y-1.5">
+              <RefLink
+                label="Slideworks — 47 Real McKinsey Presentations"
+                url="https://slideworks.io/resources/47-real-mckinsey-presentations"
+                note="実際のMcKinseyスライド47本"
+              />
+              <RefLink
+                label="Slideworks — 54 Real BCG Presentations"
+                url="https://slideworks.io/resources/54-real-bcg-presentations"
+                note="実際のBCGスライド54本"
+              />
+              <RefLink
+                label="Analyst Academy — Consulting Presentations"
+                url="https://www.theanalystacademy.com/consulting-presentations/"
+                note="600+本のコンサルプレゼン集"
+              />
+            </div>
+          </div>
+        </div>
+      </details>
+
       {/* Sessions */}
       <div>
         <div className="flex items-center justify-between mb-4">
@@ -270,6 +357,32 @@ function ApiRow({
       </span>
       <span className="text-text-primary">{path}</span>
       <span className="text-text-muted ml-auto">{desc}</span>
+    </div>
+  );
+}
+
+function RefLink({
+  label,
+  url,
+  note,
+}: {
+  label: string;
+  url: string;
+  note?: string;
+}) {
+  return (
+    <div className="flex items-start gap-2 text-sm">
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-accent-leaf hover:underline shrink-0"
+      >
+        {label}
+      </a>
+      {note && (
+        <span className="text-text-muted text-xs mt-0.5">— {note}</span>
+      )}
     </div>
   );
 }

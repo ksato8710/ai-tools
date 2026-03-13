@@ -16,6 +16,7 @@ import {
   startScreenRecording,
   keepScreenOn,
   restoreScreenTimeout,
+  waitForDevice,
 } from "@/lib/agent-device";
 import { generateId } from "@/lib/app-inspector-schema";
 import type { CapturedScreen, ComponentCount, AppInspectorSession } from "@/lib/app-inspector-schema";
@@ -80,7 +81,8 @@ export async function POST(
 ) {
   const { sessionId } = await params;
   const body = await request.json().catch(() => ({}));
-  const mode = ((body as { mode?: string }).mode || "both") as "screenshot" | "analysis" | "both";
+  const { mode: rawMode, userFeedback } = body as { mode?: string; userFeedback?: string };
+  const mode = (rawMode || "both") as "screenshot" | "analysis" | "both";
 
   const session = await loadSession(sessionId);
   if (!session) {
@@ -88,12 +90,15 @@ export async function POST(
   }
 
   progressStore.delete(sessionId);
-  pushProgress(sessionId, "progress", { phase: "init", message: "反復キャプチャを開始します…" });
+  const initMsg = userFeedback
+    ? `追加キャプチャを開始します（ユーザー指示あり）…`
+    : "反復キャプチャを開始します…";
+  pushProgress(sessionId, "progress", { phase: "init", message: initMsg });
 
   const captureScreenshots = mode === "screenshot" || mode === "both";
   const captureSnapshots = mode === "analysis" || mode === "both";
 
-  runIterativeCapture(sessionId, session, captureScreenshots, captureSnapshots).catch((err) => {
+  runIterativeCapture(sessionId, session, captureScreenshots, captureSnapshots, userFeedback).catch((err) => {
     console.error("[Iterative Capture] Unhandled error:", err);
   });
 
@@ -103,7 +108,7 @@ export async function POST(
 // ============================================================
 // Constants
 // ============================================================
-const MAX_ROUNDS = 5;             // 最大ラウンド数
+const MAX_ROUNDS = 8;             // 最大ラウンド数
 const MAX_TOTAL_SCREENS = 30;     // 最大画面数
 const VIDEO_MAX_MS = 180_000;     // 動画最大3分
 const MAX_TARGETS_PER_ROUND = 8;  // 1ラウンドあたり最大ターゲット数
@@ -116,6 +121,7 @@ async function runIterativeCapture(
   session: AppInspectorSession,
   captureScreenshots: boolean,
   captureSnapshots: boolean,
+  userFeedback?: string,
 ) {
   const logFile = sessionLogPath(sessionId);
   const captureLog: string[] = [];
@@ -185,8 +191,19 @@ async function runIterativeCapture(
     emit("progress", { phase: "round-0", message: "初回探索: ホーム画面とタブを取得…" });
     log("=== Round 0: Initial exploration ===");
 
-    await initialExploration(session, captureScreenshots, captureSnapshots, capturedHashes, log, emit);
+    try {
+      await initialExploration(session, captureScreenshots, captureSnapshots, capturedHashes, log, emit);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : "unknown error";
+      log(`Initial exploration error: ${errMsg}`);
+      emit("progress", { phase: "error", message: `初回探索中にエラー: ${errMsg}` });
+      // If we have screens, continue to analysis rounds
+    }
     await saveSession(session);
+
+    if (session.screens.length === 0) {
+      throw new Error("ホーム画面の取得に失敗しました。端末とアプリの状態を確認してください。");
+    }
 
     log(`Initial exploration: ${session.screens.length} screens captured`);
     emit("progress", { phase: "round-0", message: `初回探索完了: ${session.screens.length}画面取得` });
@@ -229,6 +246,7 @@ async function runIterativeCapture(
         coveredFeatures.length > 0 ? coveredFeatures : undefined,
         (msg) => emit("progress", { phase: `round-${round}-analysis`, message: msg }),
         logFile,
+        round === 1 ? userFeedback : undefined, // Pass user feedback only on first round
       );
 
       if (!analysisResult) {
@@ -250,6 +268,20 @@ async function runIterativeCapture(
         message: `把握済み機能: ${coveredFeatures.length}件 / 未取得: ${analysisResult.uncapturedTargets.length}件`,
       });
 
+      // Emit analysis summary for intermediate output
+      pushProgress(sessionId, "analysis-result", {
+        round,
+        coveredFeatures: analysisResult.coveredFeatures,
+        uncapturedCount: analysisResult.uncapturedTargets.length,
+        uncapturedTargets: analysisResult.uncapturedTargets.slice(0, 5).map((t) => ({
+          featureName: t.featureName,
+          priority: t.priority,
+        })),
+        newDiscoveries: analysisResult.newDiscoveries,
+        summary: analysisResult.summary,
+        isComplete: analysisResult.isComplete,
+      });
+
       if (analysisResult.isComplete || analysisResult.uncapturedTargets.length === 0) {
         log("All features covered, stopping");
         emit("progress", { phase: `round-${round}-analysis`, message: "すべての主要機能をカバーしました" });
@@ -265,16 +297,27 @@ async function runIterativeCapture(
       log(`=== Round ${round}: Capturing ${targets.length} targets ===`);
 
       let newScreensThisRound = 0;
+      let consecutiveFailures = 0;
 
       for (const target of targets) {
         if (session.screens.length >= MAX_TOTAL_SCREENS) break;
 
         // Check device
-        const midCheck = await ensureDeviceReady();
+        let midCheck = await ensureDeviceReady();
         if (!midCheck.ready) {
-          log("Device locked mid-capture");
-          emit("error", { message: `端末がロックされました（${session.screens.length}画面取得済み）` });
-          break;
+          log("Device not ready, attempting recovery...");
+          emit("progress", { phase: "recovery", message: "端末との接続を回復中..." });
+          const recovered = await waitForDevice(15000);
+          if (recovered) {
+            midCheck = await ensureDeviceReady();
+          }
+          if (!midCheck.ready) {
+            log("Device recovery failed");
+            emit("error", { message: `端末がロックされました（${session.screens.length}画面取得済み）` });
+            break;
+          }
+          log("Device recovered");
+          emit("progress", { phase: "recovery", message: "端末との接続が回復しました" });
         }
 
         emit("progress", {
@@ -288,16 +331,24 @@ async function runIterativeCapture(
         );
 
         if (captured) {
+          consecutiveFailures = 0; // reset on success
           newScreensThisRound++;
           await saveSession(session);
           emit("screen", {
             screenId: captured.id,
             label: captured.label,
             index: captured.index,
+            screenshotPath: captured.screenshotPath,
           });
           log(`Captured: "${captured.label}"`);
         } else {
-          log(`Failed to capture: "${target.featureName}"`);
+          consecutiveFailures++;
+          log(`Failed to capture: "${target.featureName}" (consecutive: ${consecutiveFailures})`);
+          if (consecutiveFailures >= 3) {
+            log("3 consecutive failures, skipping remaining targets in this round");
+            emit("progress", { phase: `round-${round}-capture`, message: "連続3回失敗、このラウンドの残りターゲットをスキップ" });
+            break;
+          }
         }
       }
 
@@ -359,11 +410,22 @@ async function runIterativeCapture(
     });
 
   } catch (err) {
-    session.status = "error";
-    session.error = err instanceof Error ? err.message : "Capture failed";
+    const errMsg = err instanceof Error ? err.message : "Capture failed";
     session.captureLog = captureLog;
+
+    if (session.screens.length > 0) {
+      // Partial success — screens were captured before the error
+      session.status = "completed";
+      session.error = errMsg;
+      log(`Partial completion: ${session.screens.length} screens captured before error: ${errMsg}`);
+      emit("progress", { phase: "error", message: `エラー発生: ${errMsg}（${session.screens.length}画面は取得済み）` });
+    } else {
+      session.status = "error";
+      session.error = errMsg;
+      log(`Error: ${errMsg}`);
+      emit("error", { message: errMsg });
+    }
     await saveSession(session);
-    emit("error", { message: err instanceof Error ? err.message : "Capture failed" });
   } finally {
     // Restore screen timeout to normal
     await restoreScreenTimeout();
@@ -388,7 +450,7 @@ async function initialExploration(
     throw new Error("ホーム画面の取得に失敗しました");
   }
   log(`Home: "${home.label}"`);
-  emit("screen", { screenId: home.id, label: home.label, index: home.index });
+  emit("screen", { screenId: home.id, label: home.label, index: home.index, screenshotPath: home.screenshotPath });
 
   // Scroll down for more content
   await scrollDown();
@@ -396,7 +458,7 @@ async function initialExploration(
   const scrolled = await captureCurrentScreen(session, captureScreenshots, captureSnapshots, capturedHashes);
   if (scrolled) {
     log(`Scrolled home: "${scrolled.label}"`);
-    emit("screen", { screenId: scrolled.id, label: scrolled.label, index: scrolled.index });
+    emit("screen", { screenId: scrolled.id, label: scrolled.label, index: scrolled.index, screenshotPath: scrolled.screenshotPath });
   }
   await scrollUp();
   await delay(1000);
@@ -467,10 +529,15 @@ async function initialExploration(
       continue;
     }
 
-    const captured = await captureCurrentScreen(session, captureScreenshots, captureSnapshots, capturedHashes);
-    if (captured) {
-      log(`Tab screen: "${captured.label}"`);
-      emit("screen", { screenId: captured.id, label: captured.label, index: captured.index });
+    try {
+      const captured = await captureCurrentScreen(session, captureScreenshots, captureSnapshots, capturedHashes);
+      if (captured) {
+        log(`Tab screen: "${captured.label}"`);
+        emit("screen", { screenId: captured.id, label: captured.label, index: captured.index, screenshotPath: captured.screenshotPath });
+      }
+    } catch (err) {
+      log(`Tab capture failed: "${tab.label}" — ${err instanceof Error ? err.message : "unknown error"}`);
+      // Continue to next tab instead of stopping
     }
     // Don't goBack for tabs — stay in current state
   }
@@ -670,31 +737,38 @@ function findBestMatch(
 
 async function findTargetWithScroll(targetLabel: string): Promise<string | null> {
   // Attempt 1: current screen
-  const snap1 = await takeSnapshot(false);
+  let snap1: string;
+  try {
+    snap1 = await takeSnapshot(false);
+  } catch {
+    return null; // Device issue, caller should handle
+  }
   const els1 = parseSnapshotTree(snap1);
   const m1 = findBestMatch(els1, targetLabel);
   if (m1) return m1.ref;
 
   // Attempt 2: scroll down once
-  await scrollDown();
+  try { await scrollDown(); } catch { return null; }
   await delay(1500);
-  const snap2 = await takeSnapshot(false);
+  let snap2: string;
+  try { snap2 = await takeSnapshot(false); } catch { return null; }
   const els2 = parseSnapshotTree(snap2);
   const m2 = findBestMatch(els2, targetLabel);
   if (m2) return m2.ref;
 
   // Attempt 3: scroll down again (deeper content)
-  await scrollDown();
+  try { await scrollDown(); } catch { return null; }
   await delay(1500);
-  const snap3 = await takeSnapshot(false);
+  let snap3: string;
+  try { snap3 = await takeSnapshot(false); } catch { return null; }
   const els3 = parseSnapshotTree(snap3);
   const m3 = findBestMatch(els3, targetLabel);
   if (m3) return m3.ref;
 
   // Restore: scroll back up
-  await scrollUp();
+  try { await scrollUp(); } catch { /* ignore */ }
   await delay(800);
-  await scrollUp();
+  try { await scrollUp(); } catch { /* ignore */ }
   await delay(800);
   return null;
 }
@@ -711,8 +785,16 @@ async function captureCurrentScreen(
   const screenId = generateId("sc");
   const screenshotFile = `${session.id}_${screenId}.png`;
 
+  let screenshotOk = false;
   if (captureScreenshots) {
-    await takeScreenshot(join(getScreenshotsDir(), screenshotFile));
+    try {
+      await takeScreenshot(join(getScreenshotsDir(), screenshotFile));
+      screenshotOk = true;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "unknown";
+      console.warn(`[captureCurrentScreen] Screenshot failed: ${msg}`);
+      // Continue without screenshot — snapshot tree is more important
+    }
   }
 
   let snapshotRaw = "";
@@ -732,7 +814,7 @@ async function captureCurrentScreen(
   const screen: CapturedScreen = {
     id: screenId,
     index: session.screens.length,
-    screenshotPath: captureScreenshots ? `/app-inspector/${screenshotFile}` : "",
+    screenshotPath: screenshotOk ? `/app-inspector/${screenshotFile}` : "",
     snapshotTree: snapshotRaw,
     label: detectScreenLabel(elements, session.screens.length),
     interactiveElements: countInteractive(elements),

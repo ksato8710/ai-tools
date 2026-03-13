@@ -53,9 +53,32 @@ export default function SlideRenderer({
           fontFamily: ds.typography.bodyFont,
           background: ds.colors.background,
           color: ds.colors.text,
+          position: "relative",
         }}
       >
-        {renderSlideContent(slide, ds)}
+        {slide.backgroundImage && slide.layout !== "image-text" && (
+          <>
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                backgroundImage: `url(${slide.backgroundImage})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                background: slide.backgroundOverlay || "rgba(0,0,0,0.45)",
+              }}
+            />
+          </>
+        )}
+        <div style={{ position: "relative", height: "100%" }}>
+          {renderSlideContent(slide, ds)}
+        </div>
       </div>
     </div>
   );
@@ -90,11 +113,12 @@ type SProps = { slide: Slide; ds: DesignSystem };
 function TitleSlide({ slide, ds }: SProps) {
   const body = slide.body as TitleBody | undefined;
   const { colors: c, typography: ty, decorations: dec } = ds;
+  const hasBg = !!slide.backgroundImage;
   return (
     <div
       className="flex flex-col items-center justify-center h-full text-center px-16"
       style={{
-        background: `linear-gradient(135deg, ${c.primaryDark} 0%, ${c.primary} 100%)`,
+        background: hasBg ? "transparent" : `linear-gradient(135deg, ${c.primaryDark} 0%, ${c.primary} 100%)`,
         color: c.textInverse,
       }}
     >
@@ -154,10 +178,11 @@ function TitleSlide({ slide, ds }: SProps) {
 // --- Section Divider ---
 function SectionDividerSlide({ slide, ds }: SProps) {
   const { colors: c, typography: ty, decorations: dec } = ds;
+  const hasBg = !!slide.backgroundImage;
   return (
     <div
       className="flex flex-col items-center justify-center h-full px-16"
-      style={{ background: c.backgroundAlt }}
+      style={{ background: hasBg ? "transparent" : c.backgroundAlt }}
     >
       {dec.sectionDividerStyle === "bar" && (
         <div
@@ -185,7 +210,7 @@ function SectionDividerSlide({ slide, ds }: SProps) {
           fontFamily: ty.headingFont,
           fontWeight: ty.headingWeight,
           lineHeight: ty.headingLineHeight,
-          color: c.primary,
+          color: hasBg ? c.textInverse : c.primary,
           letterSpacing: ty.headingLetterSpacing ? `${ty.headingLetterSpacing}em` : undefined,
         }}
       >
@@ -194,7 +219,7 @@ function SectionDividerSlide({ slide, ds }: SProps) {
       {slide.subtitle && (
         <div
           className="mt-4 opacity-60"
-          style={{ fontSize: ty.h3Size, color: c.textMuted }}
+          style={{ fontSize: ty.h3Size, color: hasBg ? c.textInverse : c.textMuted }}
         >
           {slide.subtitle}
         </div>
@@ -464,15 +489,28 @@ function ImageTextSlide({ slide, ds }: SProps) {
   const body = slide.body as ImageTextBody;
   const { colors: c, typography: ty } = ds;
   const imgLeft = body.imagePosition !== "right";
+  const imgUrl = body.imageUrl || slide.backgroundImage;
   return (
     <div className={`flex h-full ${imgLeft ? "" : "flex-row-reverse"}`}>
       <div
-        className="w-1/2 flex items-center justify-center"
-        style={{ background: c.backgroundAlt }}
+        className="w-1/2 flex items-center justify-center overflow-hidden"
+        style={{ background: c.backgroundAlt, position: "relative" }}
       >
-        <div className="opacity-40 p-8" style={{ fontSize: ty.bodySize - 1 }}>
-          {body.imagePlaceholder || "[Image]"}
-        </div>
+        {imgUrl ? (
+          <img
+            src={imgUrl}
+            alt={slide.title}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+            }}
+          />
+        ) : (
+          <div className="opacity-40 p-8" style={{ fontSize: ty.bodySize - 1 }}>
+            {body.imagePlaceholder || "[Image]"}
+          </div>
+        )}
       </div>
       <div className="w-1/2 flex flex-col justify-center px-12">
         <div

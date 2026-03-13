@@ -95,7 +95,7 @@ export async function POST(
       // Spawn claude with stdin for prompt, flags as separate args
       const child = spawn(
         "claude",
-        ["-p", "--output-format", "stream-json", "--verbose"],
+        ["-p", "--model", "opus", "--output-format", "stream-json", "--verbose"],
         {
           stdio: ["pipe", "pipe", "pipe"],
           timeout: 180_000,

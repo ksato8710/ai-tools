@@ -7,6 +7,7 @@ import { spawn } from "child_process";
 import { appendFile } from "fs/promises";
 import type { ScreenType, ScreenAnalysis, AppStructureAnalysis } from "./app-inspector-analysis";
 import { loadLearnedRules, updateLearnedRules, type LearnedRules } from "./app-inspector-rules-store";
+import type { InspectorReport } from "./app-inspector-schema";
 
 type ProgressCallback = (message: string) => void;
 
@@ -42,27 +43,34 @@ async function callClaudeCode(
       timeout: 300_000, // 5 min
     });
 
-    // Write prompt to stdin and close it
-    proc.stdin.write(prompt);
-    proc.stdin.end();
+    // Write prompt to stdin and close it.
+    // Use end(data) to handle large prompts atomically (avoids backpressure issues).
+    proc.stdin.end(prompt);
 
     let resultText = "";
     let buffer = "";
     let outputTokens = 0;
     let lastSnippet = "";
+    let modelName = "claude-opus-4-6";
+    let phase: "starting" | "thinking" | "generating" | "done" = "starting";
     const startTime = Date.now();
 
     writeLog(`\n--- Opus Call Start: ${new Date().toISOString()} ---`);
     writeLog(`[prompt-length] ${prompt.length} chars`);
 
+    onProgress?.("Claude Code を起動中...");
+
     // Heartbeat: emit elapsed time every 5 seconds
     const heartbeat = setInterval(() => {
       const elapsed = Math.round((Date.now() - startTime) / 1000);
-      if (outputTokens > 0) {
+      if (phase === "thinking") {
         const snippet = lastSnippet ? ` | ${lastSnippet}` : "";
-        onProgress?.(`応答生成中… (${elapsed}秒, ${outputTokens} tokens)${snippet}`);
-      } else {
-        onProgress?.(`Opus に送信中… (${elapsed}秒経過)`);
+        onProgress?.(`${modelName} が思考中… (${elapsed}秒)${snippet}`);
+      } else if (phase === "generating") {
+        const snippet = lastSnippet ? ` | ${lastSnippet}` : "";
+        onProgress?.(`${modelName} が生成中… (${elapsed}秒, ${outputTokens} tokens)${snippet}`);
+      } else if (phase === "starting") {
+        onProgress?.(`${modelName} に送信中… (${elapsed}秒経過)`);
       }
     }, 5000);
 
@@ -77,9 +85,12 @@ async function callClaudeCode(
           const event = JSON.parse(line);
 
           if (event.type === "system" && event.subtype === "init") {
+            modelName = event.model || "claude-opus-4-6";
             const elapsed = Math.round((Date.now() - startTime) / 1000);
-            onProgress?.(`Opus セッション開始 (${elapsed}秒)`);
-            writeLog(`[init] model=${event.model || "opus"}`);
+            onProgress?.(`Claude Code 起動完了 (pid: ${proc.pid})`);
+            // Small delay then show model
+            setTimeout(() => onProgress?.(`モデル: ${modelName}`), 100);
+            writeLog(`[init] model=${modelName}, session=${event.session_id || ""}`);
           } else if (event.type === "assistant" && event.message?.content) {
             const usage = event.message.usage;
             if (usage?.output_tokens) {
@@ -88,20 +99,26 @@ async function callClaudeCode(
             const content = event.message.content as { type: string; text?: string; thinking?: string }[];
             for (const block of content) {
               if (block.type === "thinking" && block.thinking) {
-                // Thinking block — show preview in UI, log full
+                phase = "thinking";
                 const preview = block.thinking.slice(0, 120) + (block.thinking.length > 120 ? "…" : "");
                 lastSnippet = preview;
                 writeLog(`[thinking] ${block.thinking.slice(0, 500)}`);
               } else if (block.type === "text" && block.text) {
+                phase = "generating";
                 writeLog(`[opus-response]\n${block.text}`);
                 const snippet = extractSnippet(block.text);
                 if (snippet) lastSnippet = snippet;
               }
             }
             const elapsed = Math.round((Date.now() - startTime) / 1000);
-            const snippetDisplay = lastSnippet ? ` | ${lastSnippet}` : "";
-            onProgress?.(`応答生成中… (${elapsed}秒, ${outputTokens} tokens)${snippetDisplay}`);
+            const snippet = lastSnippet ? ` | ${lastSnippet}` : "";
+            if (phase === "thinking") {
+              onProgress?.(`${modelName} が思考中… (${elapsed}秒)${snippet}`);
+            } else {
+              onProgress?.(`${modelName} が生成中… (${elapsed}秒, ${outputTokens} tokens)${snippet}`);
+            }
           } else if (event.type === "result") {
+            phase = "done";
             resultText = event.result || "";
             if (event.is_error) {
               writeLog(`[error] ${resultText}`);
@@ -109,7 +126,7 @@ async function callClaudeCode(
             }
             const elapsed = Math.round((Date.now() - startTime) / 1000);
             const cost = event.total_cost_usd ? `$${event.total_cost_usd.toFixed(3)}` : "";
-            onProgress?.(`Opus 応答完了 (${elapsed}秒${cost ? `, ${cost}` : ""})`);
+            onProgress?.(`${modelName} 応答完了 (${elapsed}秒${cost ? `, ${cost}` : ""})`);
             writeLog(`[result] ${elapsed}s, ${outputTokens} tokens${cost ? `, ${cost}` : ""}`);
             writeLog(`--- Opus Call End ---\n`);
           }
@@ -488,6 +505,7 @@ export async function analyzeForNextCaptures(
   previouslyCoveredFeatures?: string[],
   onProgress?: ProgressCallback,
   logFile?: string,
+  userFeedback?: string,
 ): Promise<IterativeAnalysisResult | null> {
   try {
     const systemPrompt = `あなたはAndroidアプリのUI構造分析の専門家です。キャプチャ済みの画面スナップショットツリーを分析し、まだキャプチャされていない画面や機能を特定してください。`;
@@ -504,13 +522,18 @@ export async function analyzeForNextCaptures(
       previouslyKnownSection = `\n前回の分析で把握済みの機能:\n${previouslyCoveredFeatures.map((f) => `- ${f}`).join("\n")}\n`;
     }
 
+    let userFeedbackSection = "";
+    if (userFeedback) {
+      userFeedbackSection = `\n## ユーザーからの追加指示:\n${userFeedback}\n上記の指示を最優先で考慮し、キャプチャ戦略に反映してください。\n`;
+    }
+
     const userPrompt = `以下のアプリの画面スナップショットを分析してください。
 
 アプリ: ${appName} (${appPackage})
 キャプチャ済み画面数: ${screens.length}
 
 ${screensText}
-${previouslyKnownSection}
+${previouslyKnownSection}${userFeedbackSection}
 以下を分析してください：
 
 1. **把握済み機能**: キャプチャ済み画面から読み取れる機能をすべてリストアップ
@@ -565,6 +588,117 @@ JSON形式で回答（JSONのみ出力、他のテキストは含めない）:
     return result;
   } catch (err) {
     console.error("[Iterative Analysis] Error:", err);
+    return null;
+  }
+}
+
+// ─── Final Report Generation ────────────────────────────────────────────────
+
+export async function generateFinalReport(
+  screens: { snapshotTree: string; label: string; index: number; screenshotPath: string }[],
+  appPackage: string,
+  appName: string,
+  onProgress?: ProgressCallback,
+  logFile?: string,
+): Promise<InspectorReport | null> {
+  const systemPrompt = `あなたはAndroidアプリのUI/UX分析の専門家です。
+キャプチャされた全画面のスナップショットツリーを包括的に分析し、
+アプリの構造レポートを生成してください。
+出力はJSON形式のみ（他のテキストは含めない）。`;
+
+  const screensText = screens
+    .map((s) => `--- Screen (index: ${s.index}, label: "${s.label}") ---\n${s.snapshotTree || "(スナップショットなし)"}`)
+    .join("\n\n");
+
+  const userPrompt = `以下のAndroidアプリの全画面を分析し、包括的なレポートを生成してください。
+
+アプリ: ${appName} (${appPackage})
+キャプチャ画面数: ${screens.length}
+
+${screensText}
+
+以下の構造でJSONレポートを生成してください：
+
+{
+  "appOverview": {
+    "description": "アプリの概要（3-5文）",
+    "targetUsers": "想定ユーザー層",
+    "appCategory": "アプリカテゴリ"
+  },
+  "screenMap": [
+    {
+      "screenId": "screen_0",
+      "label": "画面名",
+      "screenType": "home|list|detail|form|settings|menu|etc",
+      "description": "この画面の役割の説明",
+      "features": ["この画面で提供される機能"]
+    }
+  ],
+  "screenTransitions": [
+    {
+      "from": "画面名",
+      "to": "画面名",
+      "trigger": "タップ対象（ボタン名/タブ名等）",
+      "description": "遷移の説明"
+    }
+  ],
+  "featureAnalysis": [
+    {
+      "category": "機能カテゴリ名",
+      "features": [
+        {
+          "name": "機能名",
+          "description": "機能の説明",
+          "screens": ["関連画面名"],
+          "importance": "core|secondary|utility"
+        }
+      ]
+    }
+  ],
+  "appStructure": {
+    "navigationPattern": "Tab Navigation (Bottom) | Drawer | Stack | etc",
+    "informationArchitecture": "情報構造の説明",
+    "keyFlows": [
+      {
+        "name": "主要フロー名",
+        "steps": ["ステップ1", "ステップ2"]
+      }
+    ]
+  },
+  "characteristics": ["アプリの特徴1", "特徴2"],
+  "issues": [
+    {
+      "severity": "critical|major|minor",
+      "category": "UX|アクセシビリティ|情報設計|パフォーマンス",
+      "description": "課題の説明",
+      "affectedScreens": ["影響画面名"]
+    }
+  ],
+  "competitorInsights": ["競合分析の所見1"],
+  "summary": "全体サマリー（5-10文）"
+}
+
+注意:
+- screenMapは全キャプチャ画面を含めること
+- screenTransitionsはスナップショットツリーのボタン/タブ/リンクから推測
+- featureAnalysisはアプリの全機能を網羅すること
+- issuesは具体的で改善可能な内容にすること
+- すべて日本語で出力`;
+
+  try {
+    const text = await callClaudeCode(userPrompt, systemPrompt, onProgress, logFile);
+
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.warn("[Final Report] No JSON found in response");
+      return null;
+    }
+
+    const report = JSON.parse(jsonMatch[0]);
+    report.generatedAt = new Date().toISOString();
+    return report as InspectorReport;
+  } catch (err) {
+    console.error("[Final Report] Error:", err);
     return null;
   }
 }

@@ -8,6 +8,7 @@ export interface AppInspectorSession {
   status: "capturing" | "completed" | "error";
   screens: CapturedScreen[];
   summary?: AnalysisSummary;
+  report?: InspectorReport;
   error?: string;
   videoPath?: string; // path to capture recording (relative to public/)
   captureLog?: string[]; // log of actions taken during capture
@@ -37,6 +38,54 @@ export interface AnalysisSummary {
 export interface ComponentCount {
   type: string; // button, textfield, image, etc.
   count: number;
+}
+
+export interface InspectorReport {
+  generatedAt: string;
+  appOverview: {
+    description: string;
+    targetUsers: string;
+    appCategory: string;
+  };
+  screenMap: {
+    screenId: string;
+    label: string;
+    screenType: string;
+    description: string;
+    features: string[];
+  }[];
+  screenTransitions: {
+    from: string;
+    to: string;
+    trigger: string;
+    description: string;
+  }[];
+  featureAnalysis: {
+    category: string;
+    features: {
+      name: string;
+      description: string;
+      screens: string[];
+      importance: "core" | "secondary" | "utility";
+    }[];
+  }[];
+  appStructure: {
+    navigationPattern: string;
+    informationArchitecture: string;
+    keyFlows: {
+      name: string;
+      steps: string[];
+    }[];
+  };
+  characteristics: string[];
+  issues: {
+    severity: "critical" | "major" | "minor";
+    category: string;
+    description: string;
+    affectedScreens: string[];
+  }[];
+  competitorInsights: string[];
+  summary: string;
 }
 
 export function generateId(prefix: string): string {

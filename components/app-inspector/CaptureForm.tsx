@@ -12,6 +12,8 @@ interface Props {
   selectedAppName?: string | null;
   onClearSelection?: () => void;
   hasActiveSession?: boolean;
+  activeSessionName?: string;
+  activeSessionScreenCount?: number;
 }
 
 interface DeviceStatus {
@@ -29,6 +31,8 @@ export default function CaptureForm({
   selectedAppName,
   onClearSelection,
   hasActiveSession,
+  activeSessionName,
+  activeSessionScreenCount = 0,
 }: Props) {
   const [appPackage, setAppPackage] = useState("");
   const [appName, setAppName] = useState("");
@@ -220,62 +224,71 @@ export default function CaptureForm({
           </div>
         )}
 
-        {/* New Capture button */}
-        <button
-          type="submit"
-          disabled={isCapturing || checkingDevice || !appPackage.trim()}
-          className="w-full py-2.5 px-4 bg-accent-leaf text-white rounded-xl text-sm font-semibold
-                     hover:bg-accent-leaf-hover transition-colors
-                     disabled:opacity-50 disabled:cursor-not-allowed
-                     flex items-center justify-center gap-2"
-        >
-          {isCapturing || checkingDevice ? (
-            <>
-              <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              {checkingDevice ? "端末確認中…" : "Capturing…"}
-            </>
-          ) : (
-            <>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
-                <rect x="2" y="3" width="12" height="10" rx="2" stroke="currentColor" strokeWidth="1.5" />
-                <circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.5" />
-              </svg>
-              新規キャプチャ
-            </>
+        {/* Action buttons */}
+        <div className="space-y-3">
+          {/* Append to active session — shown first when available */}
+          {hasActiveSession && !isCapturing && (
+            <div className="bg-accent-leaf/5 border border-accent-leaf/20 rounded-xl p-3">
+              <p className="text-[10px] text-accent-leaf font-semibold mb-1.5 flex items-center gap-1.5">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="shrink-0">
+                  <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+                「{activeSessionName}」に追加（{activeSessionScreenCount}画面取得済み）
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleAppend("both")}
+                  disabled={isCapturing}
+                  className="py-2 px-3 bg-accent-leaf text-white rounded-lg text-xs font-semibold
+                             hover:bg-accent-leaf-hover transition-colors
+                             disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  追加キャプチャ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAppend(mode)}
+                  disabled={isCapturing}
+                  className="py-2 px-3 bg-white border border-accent-leaf/30 rounded-lg text-xs font-medium
+                             text-accent-leaf hover:bg-accent-leaf/5 transition-colors
+                             disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {mode === "screenshot" ? "画像のみ追加" : mode === "analysis" ? "構造のみ追加" : "両方追加"}
+                </button>
+              </div>
+            </div>
           )}
-        </button>
-      </form>
 
-      {/* Append to active session */}
-      {hasActiveSession && !isCapturing && (
-        <div className="border-t border-border-light pt-4">
-          <p className="text-[10px] text-text-muted mb-2 uppercase tracking-wide font-semibold">
-            選択中セッションに追加
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => handleAppend("screenshot")}
-              disabled={isCapturing}
-              className="py-2 px-3 bg-card border border-border-light rounded-lg text-xs font-medium
-                         text-text-primary hover:bg-cream transition-colors
-                         disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              + 画像を追加
-            </button>
-            <button
-              type="button"
-              onClick={() => handleAppend("analysis")}
-              disabled={isCapturing}
-              className="py-2 px-3 bg-card border border-border-light rounded-lg text-xs font-medium
-                         text-text-primary hover:bg-cream transition-colors
-                         disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              + 構造を追加
-            </button>
-          </div>
+          {/* New session button */}
+          <button
+            type="submit"
+            disabled={isCapturing || checkingDevice || !appPackage.trim()}
+            className={`w-full py-2.5 px-4 rounded-xl text-sm font-semibold
+                       transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+                       flex items-center justify-center gap-2
+                       ${hasActiveSession
+                         ? "bg-card border border-border-light text-text-primary hover:bg-cream"
+                         : "bg-accent-leaf text-white hover:bg-accent-leaf-hover"
+                       }`}
+          >
+            {isCapturing || checkingDevice ? (
+              <>
+                <span className="inline-block w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+                {checkingDevice ? "端末確認中…" : "キャプチャ中…"}
+              </>
+            ) : (
+              <>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
+                  <rect x="2" y="3" width="12" height="10" rx="2" stroke="currentColor" strokeWidth="1.5" />
+                  <circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.5" />
+                </svg>
+                新規セッションで開始
+              </>
+            )}
+          </button>
         </div>
-      )}
+      </form>
     </div>
   );
 }

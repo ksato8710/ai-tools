@@ -17,6 +17,7 @@ import PlanningPanel from "./PlanningPanel";
 import SlideEditorPanel from "./SlideEditorPanel";
 import DesignSystemPanel from "./DesignSystemPanel";
 import CheckPanel from "./CheckPanel";
+import VisualGeneratorPanel from "./VisualGeneratorPanel";
 
 interface PresentationWorkspaceProps {
   initialData: PresentationData;
@@ -39,6 +40,7 @@ export default function PresentationWorkspace({
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
   const [viewMode, setViewMode] = useState<ViewMode>("slides");
   const [rightPanel, setRightPanel] = useState<RightPanel>("editor");
+  const [showVisualGen, setShowVisualGen] = useState(false);
 
   // Resolve the active design system
   const ds: DesignSystem = data.designSystem || defaultDesignSystem;
@@ -220,6 +222,18 @@ export default function PresentationWorkspace({
             {downloading ? "生成中..." : "PPTX"}
           </button>
           <button
+            className="px-3 py-1.5 text-xs rounded-md bg-card text-text-secondary hover:bg-card-hover transition-colors flex items-center gap-1"
+            onClick={() => setShowVisualGen(true)}
+            title="AI画像生成"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <rect x="1.5" y="1.5" width="9" height="9" rx="1.5" />
+              <circle cx="4.5" cy="4.5" r="1" />
+              <path d="M1.5 8.5l2.5-3 2 2 1.5-1.5 3 3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            ビジュアル
+          </button>
+          <button
             className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
               rightPanel === "editor"
                 ? "bg-accent-leaf text-white"
@@ -276,9 +290,24 @@ export default function PresentationWorkspace({
             <PlanningPanel
               metadata={data.metadata}
               outline={data.outline}
+              sessionId={sessionId}
               onMetadataChange={handleMetadataChange}
               onOutlineChange={handleOutlineChange}
               onSectionClick={handleSectionClick}
+              onDataUpdated={async () => {
+                if (!sessionId) return;
+                try {
+                  const res = await fetch(`/api/presentation/${sessionId}`);
+                  if (res.ok) {
+                    const session = await res.json();
+                    if (session.presentation) {
+                      setData(session.presentation);
+                    }
+                  }
+                } catch (err) {
+                  console.error("Failed to reload session:", err);
+                }
+              }}
               activeSectionId={activeSectionId}
             />
           ) : (
@@ -419,6 +448,27 @@ export default function PresentationWorkspace({
         onPrev={() => navigateSlide(-1)}
         onNext={() => navigateSlide(1)}
       />
+
+      {showVisualGen && sessionId && (
+        <VisualGeneratorPanel
+          sessionId={sessionId}
+          slides={data.slides}
+          onClose={() => setShowVisualGen(false)}
+          onDataUpdated={async () => {
+            try {
+              const res = await fetch(`/api/presentation/${sessionId}`);
+              if (res.ok) {
+                const session = await res.json();
+                if (session.presentation) {
+                  setData(session.presentation);
+                }
+              }
+            } catch (err) {
+              console.error("Failed to reload session:", err);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

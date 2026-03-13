@@ -34,6 +34,8 @@ export interface Slide {
   subtitle?: string;
   body?: SlideBody;
   notes?: string; // speaker notes
+  backgroundImage?: string; // URL to background image (any layout)
+  backgroundOverlay?: string; // CSS overlay color e.g. "rgba(0,0,0,0.5)"
 }
 
 export type SlideLayout =
