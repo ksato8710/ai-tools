@@ -36,6 +36,19 @@ yarn-error.log*
 # saved diagrams
 /data/diagrams/
 
+# variant ui sessions
+/data/variant-sessions/
+
+# app inspector sessions & captures
+/data/app-inspector-sessions/
+/public/app-inspector/
+
+# presentation session data
+/data/presentation-sessions/ps_*/
+
+# playwright mcp screenshots
+.playwright-mcp/
+
 # vercel
 .vercel
 
