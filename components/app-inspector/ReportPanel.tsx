@@ -138,7 +138,7 @@ export default function ReportPanel({ sessionId, screens, onReportReady }: Repor
     );
   }
 
-  // ─── Render report (Competitor UI Viewer style) ───────────────────────
+  // ─── Render report (AppUIUXLab style) ───────────────────────
   const r = report!;
 
   // Build screen → screenshot mapping by index

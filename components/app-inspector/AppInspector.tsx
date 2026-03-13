@@ -542,7 +542,7 @@ function AppInspectorInner() {
                     <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-indigo-800">レポート完成</p>
-                        <p className="text-xs text-indigo-600 mt-0.5">Competitor UI Viewer に登録して共有できます</p>
+                        <p className="text-xs text-indigo-600 mt-0.5">AppUIUXLab に登録して共有できます</p>
                       </div>
                       <button
                         onClick={() => setWorkflowStep("share")}
@@ -1137,7 +1137,7 @@ function RegisterButton({ sessionId, appName }: { sessionId: string; appName: st
           </svg>
         </div>
         <div>
-          <h3 className="text-sm font-semibold text-text-primary">Competitor UI Viewer に登録</h3>
+          <h3 className="text-sm font-semibold text-text-primary">AppUIUXLab に登録</h3>
           <p className="text-[11px] text-text-muted">取得したUI情報・分析結果を競合UIビューアに送信します</p>
         </div>
       </div>
@@ -1245,7 +1245,7 @@ function RegisterButton({ sessionId, appName }: { sessionId: string; appName: st
                 rel="noopener noreferrer"
                 className="text-xs text-indigo-600 hover:underline inline-flex items-center gap-1"
               >
-                Competitor UI Viewer で確認
+                AppUIUXLab で確認
                 <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                   <path d="M4 1h5v5M9 1L4 6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>

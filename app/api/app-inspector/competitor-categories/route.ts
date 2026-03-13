@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 const COMPETITOR_UI_VIEWER_URL = process.env.COMPETITOR_UI_VIEWER_URL || "https://competitor-ui-viewer.craftgarden.studio";
 
-// GET: Proxy to fetch industries/categories from Competitor UI Viewer
+// GET: Proxy to fetch industries/categories from AppUIUXLab
 export async function GET() {
   try {
     const res = await fetch(`${COMPETITOR_UI_VIEWER_URL}/api/industries`, {

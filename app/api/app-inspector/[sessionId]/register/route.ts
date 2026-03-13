@@ -82,7 +82,7 @@ function buildScreenList(
   }));
 }
 
-// POST: Register session data to competitor-ui-viewer
+// POST: Register session data to app-ui-ux-lab
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ sessionId: string }> }
