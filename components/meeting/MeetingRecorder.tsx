@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { MeetingSession, WhisperStatus } from "@/lib/meeting-schema";
+import { MeetingSession, WhisperStatus, TranscriptSegment } from "@/lib/meeting-schema";
 import MeetingTranscript from "./MeetingTranscript";
 import MeetingSummary from "./MeetingSummaryPanel";
+
+const REALTIME_INTERVAL = 30_000; // 30 seconds
 
 interface Props {
   session: MeetingSession;
@@ -20,6 +22,12 @@ export default function MeetingRecorder({ session, onUpdate }: Props) {
   const [whisperStatus, setWhisperStatus] = useState<WhisperStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Real-time transcription state
+  const [liveSegments, setLiveSegments] = useState<TranscriptSegment[]>([]);
+  const [isChunkTranscribing, setIsChunkTranscribing] = useState(false);
+  const liveTranscribedUpTo = useRef(0); // seconds already transcribed
+  const liveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -34,9 +42,57 @@ export default function MeetingRecorder({ session, onUpdate }: Props) {
       .catch(() => {});
   }, []);
 
+  // Cleanup live timer on unmount
+  useEffect(() => {
+    return () => {
+      if (liveTimerRef.current) {
+        clearInterval(liveTimerRef.current);
+      }
+    };
+  }, []);
+
+  const transcribeChunk = useCallback(async () => {
+    if (isChunkTranscribing || chunksRef.current.length === 0) return;
+
+    setIsChunkTranscribing(true);
+    try {
+      const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+      const formData = new FormData();
+      formData.append("audio", new File([blob], "chunk.webm", { type: "audio/webm" }));
+      formData.append("offset", liveTranscribedUpTo.current.toString());
+
+      const res = await fetch(`/api/meeting/${session.id}/transcribe-chunk`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.segments && data.segments.length > 0) {
+          setLiveSegments((prev) => [...prev, ...data.segments]);
+          // Update offset to the end of the last segment
+          const lastSeg = data.segments[data.segments.length - 1];
+          const endParts = lastSeg.end.split(":");
+          const endSec =
+            parseInt(endParts[0]) * 3600 +
+            parseInt(endParts[1]) * 60 +
+            parseFloat(endParts[2]);
+          liveTranscribedUpTo.current = endSec;
+        }
+      }
+    } catch {
+      // Silently fail — will retry next interval
+    } finally {
+      setIsChunkTranscribing(false);
+    }
+  }, [isChunkTranscribing, session.id]);
+
   const startRecording = useCallback(async () => {
     try {
       setError(null);
+      setLiveSegments([]);
+      liveTranscribedUpTo.current = 0;
+
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -62,6 +118,11 @@ export default function MeetingRecorder({ session, onUpdate }: Props) {
 
       mediaRecorder.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
+        // Stop live transcription timer
+        if (liveTimerRef.current) {
+          clearInterval(liveTimerRef.current);
+          liveTimerRef.current = null;
+        }
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
         await uploadAudio(blob);
       };
@@ -85,6 +146,11 @@ export default function MeetingRecorder({ session, onUpdate }: Props) {
           Math.floor((Date.now() - startTimeRef.current - pausedTimeRef.current) / 1000)
         );
       }, 200);
+
+      // Start real-time transcription timer (first after REALTIME_INTERVAL)
+      liveTimerRef.current = setInterval(() => {
+        transcribeChunk();
+      }, REALTIME_INTERVAL);
     } catch (err) {
       setError(
         err instanceof Error
@@ -92,7 +158,7 @@ export default function MeetingRecorder({ session, onUpdate }: Props) {
           : "録音を開始できませんでした"
       );
     }
-  }, [session.id]);
+  }, [session.id, transcribeChunk]);
 
   const pauseRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
@@ -159,6 +225,7 @@ export default function MeetingRecorder({ session, onUpdate }: Props) {
         }
         return;
       }
+      setLiveSegments([]); // Clear live segments — full transcript replaces them
       onUpdate(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "文字起こしに失敗しました");
@@ -201,6 +268,15 @@ export default function MeetingRecorder({ session, onUpdate }: Props) {
     session.status === "recorded" && !isTranscribing;
   const canSummarize =
     session.status === "completed" && session.rawTranscript && !isSummarizing && !session.summary;
+
+  // Determine which transcript to show
+  const displaySegments = session.transcript && session.transcript.length > 0
+    ? session.transcript
+    : liveSegments.length > 0
+      ? liveSegments
+      : null;
+  const displayRawTranscript = session.rawTranscript
+    || (liveSegments.length > 0 ? liveSegments.map((s) => s.text).join("\n") : undefined);
 
   return (
     <div className="space-y-6">
@@ -245,6 +321,11 @@ bash ./models/download-ggml-model.sh medium`}
                 <span className="text-sm text-text-secondary">
                   {isPaused ? "一時停止中" : "録音中..."}
                 </span>
+                {isChunkTranscribing && (
+                  <span className="text-xs text-accent-leaf animate-pulse ml-2">
+                    文字起こし中...
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -307,6 +388,31 @@ bash ./models/download-ggml-model.sh medium`}
         </div>
       </div>
 
+      {/* Live Transcript during recording */}
+      {isRecording && liveSegments.length > 0 && (
+        <div className="bg-card rounded-[16px] border border-accent-leaf/30 p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="w-2 h-2 rounded-full bg-accent-leaf animate-pulse" />
+            <h3 className="font-[family-name:var(--font-nunito)] font-bold text-text-primary text-sm">
+              リアルタイム文字起こし
+            </h3>
+            <span className="text-xs text-text-muted ml-auto">
+              {liveSegments.length} セグメント
+            </span>
+          </div>
+          <div className="max-h-64 overflow-y-auto space-y-1.5">
+            {liveSegments.map((seg, i) => (
+              <div key={i} className="flex gap-2 text-sm">
+                <span className="text-text-muted font-mono text-xs shrink-0 pt-0.5">
+                  {seg.start.slice(0, 8)}
+                </span>
+                <span className="text-text-primary">{seg.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Audio Player */}
       {session.audioPath && (session.status === "recorded" || session.status === "completed") && (
         <div className="bg-card rounded-[16px] border border-border-light p-6">
@@ -340,7 +446,7 @@ bash ./models/download-ggml-model.sh medium`}
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
               <path d="M3 9h2l2-4 3 8 2-4h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            文字起こし開始
+            文字起こし開始（完全版）
           </button>
           {whisperStatus?.available && (
             <span className="text-xs text-text-muted">whisper.cpp (Metal GPU加速)</span>
@@ -360,11 +466,11 @@ bash ./models/download-ggml-model.sh medium`}
         </div>
       )}
 
-      {/* Transcript */}
-      {session.transcript && session.transcript.length > 0 && (
+      {/* Transcript (full or live) */}
+      {!isRecording && displaySegments && displaySegments.length > 0 && (
         <MeetingTranscript
-          segments={session.transcript}
-          rawTranscript={session.rawTranscript}
+          segments={displaySegments}
+          rawTranscript={displayRawTranscript}
         />
       )}
 

@@ -6,44 +6,38 @@ function callClaude(prompt: string): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     const proc = spawn(
       "claude",
-      ["-p", "--model", "sonnet", "--output-format", "stream-json"],
+      ["-p", "--model", "sonnet", "--output-format", "json"],
       {
-        env: { ...process.env, CLAUDECODE: undefined, ANTHROPIC_API_KEY: undefined },
+        env: { ...process.env },
         stdio: ["pipe", "pipe", "pipe"],
-        timeout: 120_000,
+        timeout: 600_000,
       }
     );
 
     proc.stdin.end(prompt);
 
-    let resultText = "";
-    let buffer = "";
+    let stdout = "";
+    let stderr = "";
 
     proc.stdout.on("data", (chunk: Buffer) => {
-      buffer += chunk.toString();
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        try {
-          const event = JSON.parse(line);
-          if (event.type === "result") {
-            resultText = event.result || "";
-            if (event.is_error) {
-              reject(new Error(`Claude error: ${resultText}`));
-            }
-          }
-        } catch { /* skip */ }
-      }
+      stdout += chunk.toString();
     });
 
-    proc.stderr.on("data", () => {});
+    proc.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
 
     proc.on("close", (code) => {
-      if (code !== 0 && !resultText) {
-        reject(new Error(`Claude exited with code ${code}`));
-      } else {
-        resolve(resultText);
+      if (code !== 0) {
+        reject(new Error(`Claude exited with code ${code}: ${stderr || stdout}`));
+        return;
+      }
+      try {
+        const parsed = JSON.parse(stdout);
+        resolve(parsed.result || "");
+      } catch {
+        // If not JSON, return raw stdout
+        resolve(stdout);
       }
     });
 

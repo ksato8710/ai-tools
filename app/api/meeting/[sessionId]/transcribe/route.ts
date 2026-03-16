@@ -1,12 +1,49 @@
 import { NextResponse } from "next/server";
-import { getSession, saveSession, getSessionDir } from "@/lib/meeting-store";
+import { getSession, saveSession, getSessionDir, getDictionary, buildWhisperPrompt } from "@/lib/meeting-store";
 import { TranscriptSegment } from "@/lib/meeting-schema";
-import { exec } from "child_process";
+import { exec, spawn } from "child_process";
 import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
 
 const execAsync = promisify(exec);
+
+function generateTitle(transcript: string): Promise<string> {
+  return new Promise<string>((resolve) => {
+    const preview = transcript.slice(0, 2000);
+    const prompt = `以下は会議の文字起こしの冒頭です。この会議の内容を端的に表す短いタイトル（20文字以内）を1つだけ出力してください。タイトルのみ出力し、他は何も出力しないでください。\n\n${preview}`;
+
+    const proc = spawn(
+      "claude",
+      ["-p", "--model", "haiku", "--output-format", "json"],
+      {
+        env: { ...process.env },
+        stdio: ["pipe", "pipe", "pipe"],
+        timeout: 60_000,
+      }
+    );
+
+    proc.stdin.end(prompt);
+
+    let stdout = "";
+    proc.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
+    proc.stderr.on("data", () => {});
+
+    proc.on("close", () => {
+      try {
+        const parsed = JSON.parse(stdout);
+        const title = (parsed.result || "").trim().replace(/^[「『"]|[」』"]$/g, "");
+        if (title) {
+          resolve(title);
+          return;
+        }
+      } catch { /* ignore */ }
+      resolve("");
+    });
+
+    proc.on("error", () => resolve(""));
+  });
+}
 
 async function findWhisperCli(): Promise<string | null> {
   const candidates = [
@@ -155,10 +192,15 @@ export async function POST(
 
     const audioFile = session.audioPath.endsWith(".wav") ? session.audioPath : wavPath;
 
+    // Build whisper prompt from dictionary
+    const dictionary = await getDictionary();
+    const whisperPrompt = buildWhisperPrompt(dictionary);
+    const promptArg = whisperPrompt ? ` --prompt "${whisperPrompt.replace(/"/g, '\\"')}"` : "";
+
     // Run whisper-cli
     const srtPath = path.join(dir, "transcript");
-    const { stderr } = await execAsync(
-      `"${whisperCli}" -m "${model}" -f "${audioFile}" -l ja -osrt -of "${srtPath}"`,
+    await execAsync(
+      `"${whisperCli}" -m "${model}" -f "${audioFile}" -l ja -osrt -of "${srtPath}"${promptArg}`,
       { timeout: 600000 } // 10 min timeout
     );
 
@@ -171,6 +213,13 @@ export async function POST(
     session.rawTranscript = rawTranscript;
     session.status = "completed";
     session.updatedAt = new Date().toISOString();
+
+    // Generate a meaningful title from the transcript
+    const aiTitle = await generateTitle(rawTranscript);
+    if (aiTitle) {
+      session.title = aiTitle;
+    }
+
     await saveSession(session);
 
     return NextResponse.json(session);

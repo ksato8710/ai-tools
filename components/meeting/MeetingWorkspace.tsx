@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { MeetingSession } from "@/lib/meeting-schema";
 import MeetingSessionList from "./MeetingSessionList";
 import MeetingRecorder from "./MeetingRecorder";
+import MeetingDictionary from "./MeetingDictionary";
 
 export default function MeetingWorkspace() {
   const [sessions, setSessions] = useState<MeetingSession[]>([]);
@@ -91,6 +92,9 @@ export default function MeetingWorkspace() {
             onDelete={deleteSession}
           />
         </div>
+        <div className="mt-4 shrink-0">
+          <MeetingDictionary />
+        </div>
       </div>
 
       {/* Main Content */}
@@ -114,6 +118,7 @@ export default function MeetingWorkspace() {
             </div>
 
             <MeetingRecorder
+              key={selectedSession.id}
               session={selectedSession}
               onUpdate={handleSessionUpdate}
             />

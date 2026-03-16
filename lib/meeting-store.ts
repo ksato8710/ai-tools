@@ -1,8 +1,9 @@
 import fs from "fs/promises";
 import path from "path";
-import { MeetingSession } from "./meeting-schema";
+import { MeetingSession, DictionaryEntry } from "./meeting-schema";
 
 const SESSIONS_DIR = path.join(process.cwd(), "data", "meeting-sessions");
+const DICTIONARY_PATH = path.join(SESSIONS_DIR, "dictionary.json");
 
 async function ensureDir(dir: string) {
   await fs.mkdir(dir, { recursive: true });
@@ -67,4 +68,26 @@ export function getSessionDir(id: string): string {
 
 export function getAudioPath(id: string, fileName: string): string {
   return path.join(SESSIONS_DIR, id, fileName);
+}
+
+// --- Dictionary ---
+
+export async function getDictionary(): Promise<DictionaryEntry[]> {
+  try {
+    const data = await fs.readFile(DICTIONARY_PATH, "utf-8");
+    return JSON.parse(data);
+  } catch {
+    return [];
+  }
+}
+
+export async function saveDictionary(entries: DictionaryEntry[]): Promise<void> {
+  await ensureDir(SESSIONS_DIR);
+  await fs.writeFile(DICTIONARY_PATH, JSON.stringify(entries, null, 2));
+}
+
+/** Build a prompt string for whisper --prompt from dictionary entries */
+export function buildWhisperPrompt(entries: DictionaryEntry[]): string {
+  if (entries.length === 0) return "";
+  return entries.map((e) => e.word).join("、");
 }

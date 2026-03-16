@@ -33,6 +33,13 @@ export interface ActionItem {
   deadline?: string;
 }
 
+export interface DictionaryEntry {
+  id: string;
+  word: string;     // 正しい固有名詞（人名、社名、製品名など）
+  category?: "person" | "company" | "product" | "other";
+  createdAt: string;
+}
+
 export interface WhisperStatus {
   available: boolean;
   path?: string;

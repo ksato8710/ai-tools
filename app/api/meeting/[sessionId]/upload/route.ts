@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { getSession, saveSession, getSessionDir } from "@/lib/meeting-store";
 import fs from "fs/promises";
 import path from "path";
+import { execFile } from "child_process";
+import { promisify } from "util";
+
+const execFileAsync = promisify(execFile);
 
 export async function POST(
   req: Request,
@@ -30,6 +34,23 @@ export async function POST(
 
   const arrayBuffer = await file.arrayBuffer();
   await fs.writeFile(filePath, Buffer.from(arrayBuffer));
+
+  // Remux webm to fix missing duration metadata (Chrome MediaRecorder bug)
+  if (ext === "webm") {
+    const fixedPath = path.join(dir, "recording_fixed.webm");
+    try {
+      await execFileAsync("ffmpeg", [
+        "-i", filePath,
+        "-c", "copy",
+        "-y",
+        fixedPath,
+      ]);
+      await fs.rename(fixedPath, filePath);
+    } catch {
+      // If ffmpeg fails, keep original file
+      await fs.unlink(fixedPath).catch(() => {});
+    }
+  }
 
   session.audioPath = filePath;
   session.audioFileName = fileName;
