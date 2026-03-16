@@ -44,8 +44,12 @@ yarn-error.log*
 /data/app-inspector-sessions/
 /public/app-inspector/
 
+# meeting session data (transcripts, audio, etc.)
+/data/meeting-sessions/
+
 # presentation session data
 /data/presentation-sessions/ps_*/
+/data/presentation-sessions/ps_*.json
 
 # playwright mcp screenshots
 .playwright-mcp/

@@ -5,7 +5,7 @@ import path from "path";
 
 const PUBLIC_DIR = path.join(process.cwd(), "public", "presentation");
 
-const POLLINATIONS_API_KEY = "POLLINATIONS_KEY_REMOVED";
+const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY || "";
 
 /**
  * POST /api/presentation/:sessionId/generate-image
