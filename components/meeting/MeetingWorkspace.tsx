@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { MeetingSession } from "@/lib/meeting-schema";
 import MeetingSessionList from "./MeetingSessionList";
 import MeetingRecorder from "./MeetingRecorder";
@@ -11,6 +11,10 @@ export default function MeetingWorkspace() {
   const [selectedSession, setSelectedSession] = useState<MeetingSession | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Track in-progress background operations (survive session switching)
+  const [busySessions, setBusySessions] = useState<Record<string, "transcribing" | "summarizing">>({});
+  const handleSessionUpdateRef = useRef<(updated: MeetingSession) => void>(() => {});
 
   const fetchSessions = useCallback(async () => {
     try {
@@ -74,6 +78,30 @@ export default function MeetingWorkspace() {
       prev?.id === updated.id ? updated : prev
     );
   }, []);
+  handleSessionUpdateRef.current = handleSessionUpdate;
+
+  const startBackgroundTask = useCallback((
+    sessionId: string,
+    taskType: "transcribing" | "summarizing",
+    endpoint: string
+  ) => {
+    setBusySessions((prev) => ({ ...prev, [sessionId]: taskType }));
+    fetch(endpoint, { method: "POST" })
+      .then(async (res) => {
+        const data = await res.json();
+        if (res.ok) {
+          handleSessionUpdateRef.current(data);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        setBusySessions((prev) => {
+          const next = { ...prev };
+          delete next[sessionId];
+          return next;
+        });
+      });
+  }, []);
 
   if (loading) {
     return (
@@ -134,6 +162,8 @@ export default function MeetingWorkspace() {
               key={selectedSession.id}
               session={selectedSession}
               onUpdate={handleSessionUpdate}
+              busyState={busySessions[selectedSession.id]}
+              onStartTask={startBackgroundTask}
             />
           </div>
         ) : (
