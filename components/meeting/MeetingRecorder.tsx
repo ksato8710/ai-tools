@@ -10,8 +10,8 @@ const REALTIME_INTERVAL = 30_000; // 30 seconds
 interface Props {
   session: MeetingSession;
   onUpdate: (session: MeetingSession) => void;
-  busyState?: "transcribing" | "summarizing";
-  onStartTask: (sessionId: string, taskType: "transcribing" | "summarizing", endpoint: string) => void;
+  busyState?: "transcribing" | "refining" | "summarizing";
+  onStartTask: (sessionId: string, taskType: "transcribing" | "refining" | "summarizing", endpoint: string) => void;
 }
 
 export default function MeetingRecorder({ session, onUpdate, busyState, onStartTask }: Props) {
@@ -23,6 +23,7 @@ export default function MeetingRecorder({ session, onUpdate, busyState, onStartT
   const [error, setError] = useState<string | null>(null);
 
   const isTranscribing = busyState === "transcribing";
+  const isRefining = busyState === "refining";
   const isSummarizing = busyState === "summarizing";
 
   // Keep a stable ref to onUpdate for real-time chunk transcription
@@ -220,6 +221,11 @@ export default function MeetingRecorder({ session, onUpdate, busyState, onStartT
     onStartTask(session.id, "transcribing", `/api/meeting/${session.id}/transcribe`);
   };
 
+  const startRefine = () => {
+    setError(null);
+    onStartTask(session.id, "refining", `/api/meeting/${session.id}/refine`);
+  };
+
   const startSummarize = () => {
     setError(null);
     onStartTask(session.id, "summarizing", `/api/meeting/${session.id}/summarize`);
@@ -237,8 +243,10 @@ export default function MeetingRecorder({ session, onUpdate, busyState, onStartT
   const canRecord = session.status === "ready" || session.status === "error";
   const canTranscribe =
     session.status === "recorded" && !isTranscribing;
+  const canRefine =
+    session.status === "completed" && session.rawTranscript && !isRefining && !session.refinedTranscript;
   const canSummarize =
-    session.status === "completed" && session.rawTranscript && !isSummarizing && !session.summary;
+    session.status === "completed" && session.refinedTranscript && !isSummarizing && !session.summary;
 
   // Determine which transcript to show
   const displaySegments = session.transcript && session.transcript.length > 0
@@ -443,6 +451,49 @@ bash ./models/download-ggml-model.sh medium`}
           segments={displaySegments}
           rawTranscript={displayRawTranscript}
         />
+      )}
+
+      {/* Refine Button */}
+      {canRefine && (
+        <button
+          onClick={startRefine}
+          disabled={isRefining}
+          className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-full font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+        >
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <path d="M4 4l3 3-3 3M9 13h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          AIで整文する
+        </button>
+      )}
+
+      {isRefining && (
+        <div className="bg-card rounded-[16px] border border-blue-200 p-6 text-center">
+          <div className="animate-spin w-8 h-8 border-2 border-blue-200 border-t-blue-600 rounded-full mx-auto mb-3" />
+          <p className="text-sm text-text-secondary">
+            Claude AIがトランスクリプトを整文中...
+          </p>
+          <p className="text-xs text-text-muted mt-1">
+            内容を落とさず、読みやすい文章に整えています
+          </p>
+        </div>
+      )}
+
+      {/* Refined Transcript */}
+      {session.refinedTranscript && (
+        <div className="bg-card rounded-[16px] border border-blue-100 p-6">
+          <h3 className="font-[family-name:var(--font-nunito)] font-bold text-text-primary mb-3 flex items-center gap-2">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <path d="M4 4l3 3-3 3M9 13h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            整文済みトランスクリプト
+          </h3>
+          <div className="max-h-96 overflow-y-auto">
+            <p className="text-sm text-text-primary whitespace-pre-wrap leading-relaxed">
+              {session.refinedTranscript}
+            </p>
+          </div>
+        </div>
       )}
 
       {/* Summarize Button */}

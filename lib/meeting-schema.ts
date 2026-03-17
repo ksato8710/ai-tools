@@ -7,6 +7,7 @@ export interface MeetingSession {
   duration?: number; // seconds
   transcript?: TranscriptSegment[];
   rawTranscript?: string;
+  refinedTranscript?: string;
   summary?: MeetingSummary;
   errorMessage?: string;
   createdAt: string;

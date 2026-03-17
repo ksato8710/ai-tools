@@ -13,7 +13,7 @@ export default function MeetingWorkspace() {
   const [loading, setLoading] = useState(true);
 
   // Track in-progress background operations (survive session switching)
-  const [busySessions, setBusySessions] = useState<Record<string, "transcribing" | "summarizing">>({});
+  const [busySessions, setBusySessions] = useState<Record<string, "transcribing" | "refining" | "summarizing">>({});
   const handleSessionUpdateRef = useRef<(updated: MeetingSession) => void>(() => {});
 
   const fetchSessions = useCallback(async () => {
@@ -82,7 +82,7 @@ export default function MeetingWorkspace() {
 
   const startBackgroundTask = useCallback((
     sessionId: string,
-    taskType: "transcribing" | "summarizing",
+    taskType: "transcribing" | "refining" | "summarizing",
     endpoint: string
   ) => {
     setBusySessions((prev) => ({ ...prev, [sessionId]: taskType }));
@@ -162,7 +162,7 @@ export default function MeetingWorkspace() {
               key={selectedSession.id}
               session={selectedSession}
               onUpdate={handleSessionUpdate}
-              busyState={busySessions[selectedSession.id]}
+              busyState={busySessions[selectedSession.id] as "transcribing" | "refining" | "summarizing" | undefined}
               onStartTask={startBackgroundTask}
             />
           </div>

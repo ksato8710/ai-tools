@@ -36,7 +36,6 @@ function callClaude(prompt: string): Promise<string> {
         const parsed = JSON.parse(stdout);
         resolve(parsed.result || "");
       } catch {
-        // If not JSON, return raw stdout
         resolve(stdout);
       }
     });
@@ -55,43 +54,37 @@ export async function POST(
     return NextResponse.json({ error: "Session not found" }, { status: 404 });
   }
 
-  const transcriptSource = session.refinedTranscript || session.rawTranscript;
-  if (!transcriptSource) {
+  if (!session.rawTranscript) {
     return NextResponse.json({ error: "No transcript available" }, { status: 400 });
   }
 
   try {
-    const sourceLabel = session.refinedTranscript ? "整文済みトランスクリプト" : "音声トランスクリプト";
-    const prompt = `以下は会議の${sourceLabel}です。議事録として要約してください。
+    const prompt = `あなたは会議の文字起こしを整文するエディターです。以下の音声認識テキストを、読みやすい文章に整えてください。
 
-## 出力フォーマット（JSON）
-{
-  "overview": "会議の概要（2-3文）",
-  "keyPoints": ["要点1", "要点2", ...],
-  "actionItems": [{"task": "タスク内容", "assignee": "担当者（わかれば）", "deadline": "期限（わかれば）"}],
-  "decisions": ["決定事項1", "決定事項2", ...]
-}
+## ルール
+- 内容は一切削除・省略しないでください。すべての発言を残してください
+- 「えー」「あの」「うーん」などのフィラーは除去してください
+- 句読点を適切に付与してください
+- 明らかな認識ミス（同音異義語の誤り等）は文脈から推測して修正してください
+- 話者の交代が推測できる場合は改行で区切ってください
+- 敬体・常体は元の発言のまま維持してください
+- 追加の要約や注釈は不要です。整文した本文のみを出力してください
 
-## ${sourceLabel}
-${transcriptSource}
+## 文字起こし原文
+${session.rawTranscript}
 
-JSONのみを出力してください。`;
+整文した本文のみを出力してください。`;
 
-    const text = await callClaude(prompt);
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return NextResponse.json({ error: "Failed to parse summary" }, { status: 500 });
-    }
+    const refined = await callClaude(prompt);
 
-    const summary = JSON.parse(jsonMatch[0]);
-    session.summary = summary;
+    session.refinedTranscript = refined;
     session.updatedAt = new Date().toISOString();
     await saveSession(session);
 
     return NextResponse.json(session);
   } catch (err) {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Summary failed" },
+      { error: err instanceof Error ? err.message : "Refine failed" },
       { status: 500 }
     );
   }
