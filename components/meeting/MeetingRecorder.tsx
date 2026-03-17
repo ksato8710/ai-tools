@@ -22,6 +22,10 @@ export default function MeetingRecorder({ session, onUpdate }: Props) {
   const [whisperStatus, setWhisperStatus] = useState<WhisperStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Keep a stable ref to onUpdate so background fetches always call the latest callback
+  const onUpdateRef = useRef(onUpdate);
+  onUpdateRef.current = onUpdate;
+
   // Real-time transcription state
   const [liveSegments, setLiveSegments] = useState<TranscriptSegment[]>([]);
   const [isChunkTranscribing, setIsChunkTranscribing] = useState(false);
@@ -207,51 +211,51 @@ export default function MeetingRecorder({ session, onUpdate }: Props) {
     }
   };
 
-  const startTranscribe = async () => {
+  const startTranscribe = () => {
     setIsTranscribing(true);
     setError(null);
-    try {
-      const res = await fetch(`/api/meeting/${session.id}/transcribe`, {
-        method: "POST",
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        if (data.setup) {
-          setError(
-            `${data.error}\n\nセットアップ手順:\n${data.setup.join("\n")}`
-          );
-        } else {
-          setError(data.error || "文字起こしに失敗しました");
+    // Fire-and-forget: runs to completion even if component unmounts
+    fetch(`/api/meeting/${session.id}/transcribe`, { method: "POST" })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) {
+          if (data.setup) {
+            setError(`${data.error}\n\nセットアップ手順:\n${data.setup.join("\n")}`);
+          } else {
+            setError(data.error || "文字起こしに失敗しました");
+          }
+          return;
         }
-        return;
-      }
-      setLiveSegments([]); // Clear live segments — full transcript replaces them
-      onUpdate(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "文字起こしに失敗しました");
-    } finally {
-      setIsTranscribing(false);
-    }
+        setLiveSegments([]);
+        onUpdateRef.current(data);
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "文字起こしに失敗しました");
+      })
+      .finally(() => {
+        setIsTranscribing(false);
+      });
   };
 
-  const startSummarize = async () => {
+  const startSummarize = () => {
     setIsSummarizing(true);
     setError(null);
-    try {
-      const res = await fetch(`/api/meeting/${session.id}/summarize`, {
-        method: "POST",
+    // Fire-and-forget: runs to completion even if component unmounts
+    fetch(`/api/meeting/${session.id}/summarize`, { method: "POST" })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) {
+          setError(data.error || "要約に失敗しました");
+          return;
+        }
+        onUpdateRef.current(data);
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "要約に失敗しました");
+      })
+      .finally(() => {
+        setIsSummarizing(false);
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "要約に失敗しました");
-        return;
-      }
-      onUpdate(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "要約に失敗しました");
-    } finally {
-      setIsSummarizing(false);
-    }
   };
 
   const formatTime = (s: number) => {

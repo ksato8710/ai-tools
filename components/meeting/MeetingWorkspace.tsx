@@ -55,12 +55,16 @@ export default function MeetingWorkspace() {
     }
   };
 
-  const handleSessionUpdate = (updated: MeetingSession) => {
-    setSelectedSession(updated);
+  const handleSessionUpdate = useCallback((updated: MeetingSession) => {
+    // Always update the sessions list
     setSessions((prev) =>
       prev.map((s) => (s.id === updated.id ? updated : s))
     );
-  };
+    // Only update selectedSession if this session is still selected
+    setSelectedSession((prev) =>
+      prev?.id === updated.id ? updated : prev
+    );
+  }, []);
 
   if (loading) {
     return (

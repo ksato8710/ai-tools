@@ -1,10 +1,10 @@
-import { app, BrowserWindow, shell, dialog } from "electron";
+import { app, BrowserWindow, shell, dialog, Menu } from "electron";
 import { spawn, type ChildProcess } from "child_process";
 import * as path from "path";
 import * as net from "net";
 
 // ── Globals ──────────────────────────────────────────────────────────────────
-let mainWindow: BrowserWindow | null = null;
+const windows = new Set<BrowserWindow>();
 let nextProcess: ChildProcess | null = null;
 let serverPort = 0;
 
@@ -101,7 +101,7 @@ function startNextServer(port: number): ChildProcess {
 
   child.on("exit", (code) => {
     console.log(`[electron] Next.js process exited with code ${code}`);
-    if (mainWindow && !mainWindow.isDestroyed()) {
+    if (windows.size > 0) {
       dialog.showErrorBox("Server Error", `Next.js server exited unexpectedly (code ${code}).`);
       app.quit();
     }
@@ -112,7 +112,7 @@ function startNextServer(port: number): ChildProcess {
 
 // ── Create window ────────────────────────────────────────────────────────────
 function createWindow() {
-  mainWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 960,
@@ -126,10 +126,11 @@ function createWindow() {
     },
   });
 
-  mainWindow.loadURL(`http://localhost:${serverPort}`);
+  windows.add(win);
+  win.loadURL(`http://localhost:${serverPort}`);
 
   // Open external links in browser
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("http")) {
       shell.openExternal(url);
     }
@@ -137,17 +138,92 @@ function createWindow() {
   });
 
   if (isDev) {
-    mainWindow.webContents.openDevTools({ mode: "detach" });
+    win.webContents.openDevTools({ mode: "detach" });
   }
 
-  mainWindow.on("closed", () => {
-    mainWindow = null;
+  win.on("closed", () => {
+    windows.delete(win);
   });
+
+  return win;
+}
+
+// ── Menu ─────────────────────────────────────────────────────────────────────
+function setupMenu() {
+  const template: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: app.name,
+      submenu: [
+        { role: "about" },
+        { type: "separator" },
+        { role: "services" },
+        { type: "separator" },
+        { role: "hide" },
+        { role: "hideOthers" },
+        { role: "unhide" },
+        { type: "separator" },
+        { role: "quit" },
+      ],
+    },
+    {
+      label: "File",
+      submenu: [
+        {
+          label: "New Window",
+          accelerator: "CmdOrCtrl+N",
+          click: () => {
+            if (serverPort > 0) createWindow();
+          },
+        },
+        { role: "close" },
+      ],
+    },
+    {
+      label: "Edit",
+      submenu: [
+        { role: "undo" },
+        { role: "redo" },
+        { type: "separator" },
+        { role: "cut" },
+        { role: "copy" },
+        { role: "paste" },
+        { role: "selectAll" },
+      ],
+    },
+    {
+      label: "View",
+      submenu: [
+        { role: "reload" },
+        { role: "forceReload" },
+        { role: "toggleDevTools" },
+        { type: "separator" },
+        { role: "resetZoom" },
+        { role: "zoomIn" },
+        { role: "zoomOut" },
+        { type: "separator" },
+        { role: "togglefullscreen" },
+      ],
+    },
+    {
+      label: "Window",
+      submenu: [
+        { role: "minimize" },
+        { role: "zoom" },
+        { type: "separator" },
+        { role: "front" },
+      ],
+    },
+  ];
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
 // ── App lifecycle ────────────────────────────────────────────────────────────
 app.on("window-all-closed", () => {
-  app.quit();
+  // On macOS, keep app running even if all windows are closed
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
 });
 
 app.on("before-quit", () => {
@@ -159,7 +235,8 @@ app.on("before-quit", () => {
 });
 
 app.on("activate", () => {
-  if (mainWindow === null && serverPort > 0) {
+  // Re-create a window if Dock icon is clicked and no windows are open
+  if (windows.size === 0 && serverPort > 0) {
     createWindow();
   }
 });
@@ -179,6 +256,7 @@ app.whenReady().then(async () => {
     console.log("[electron] Next.js server ready!");
 
     createWindow();
+    setupMenu();
   } catch (err) {
     console.error("[electron] Failed to start:", err);
     dialog.showErrorBox(
