@@ -7,11 +7,13 @@ import MeetingSummary from "./MeetingSummaryPanel";
 
 const REALTIME_INTERVAL = 30_000; // 30 seconds
 
+type BusyState = "transcribing" | "processing" | "summarizing";
+
 interface Props {
   session: MeetingSession;
   onUpdate: (session: MeetingSession) => void;
-  busyState?: "transcribing" | "refining" | "summarizing";
-  onStartTask: (sessionId: string, taskType: "transcribing" | "refining" | "summarizing", endpoint: string) => void;
+  busyState?: BusyState;
+  onStartTask: (sessionId: string, taskType: BusyState, endpoint: string) => void;
 }
 
 export default function MeetingRecorder({ session, onUpdate, busyState, onStartTask }: Props) {
@@ -21,9 +23,11 @@ export default function MeetingRecorder({ session, onUpdate, busyState, onStartT
   const [isUploading, setIsUploading] = useState(false);
   const [whisperStatus, setWhisperStatus] = useState<WhisperStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [editingRefined, setEditingRefined] = useState(false);
+  const [editedText, setEditedText] = useState("");
 
   const isTranscribing = busyState === "transcribing";
-  const isRefining = busyState === "refining";
+  const isProcessing = busyState === "processing";
   const isSummarizing = busyState === "summarizing";
 
   // Keep a stable ref to onUpdate for real-time chunk transcription
@@ -218,17 +222,34 @@ export default function MeetingRecorder({ session, onUpdate, busyState, onStartT
   const startTranscribe = () => {
     setError(null);
     setLiveSegments([]);
+    // After transcription, workspace auto-chains → process (refine + summarize)
     onStartTask(session.id, "transcribing", `/api/meeting/${session.id}/transcribe`);
   };
 
-  const startRefine = () => {
+  const startRegenerate = () => {
     setError(null);
-    onStartTask(session.id, "refining", `/api/meeting/${session.id}/refine`);
+    // Re-run summarize only (refined transcript already updated)
+    onStartTask(session.id, "summarizing", `/api/meeting/${session.id}/summarize`);
   };
 
-  const startSummarize = () => {
-    setError(null);
-    onStartTask(session.id, "summarizing", `/api/meeting/${session.id}/summarize`);
+  const saveRefinedEdit = async () => {
+    try {
+      const res = await fetch(`/api/meeting/${session.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          refinedTranscript: editedText,
+          summary: null, // Clear summary so it can be regenerated
+        }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        onUpdate(updated);
+        setEditingRefined(false);
+      }
+    } catch {
+      setError("保存に失敗しました");
+    }
   };
 
   const formatTime = (s: number) => {
@@ -243,10 +264,8 @@ export default function MeetingRecorder({ session, onUpdate, busyState, onStartT
   const canRecord = session.status === "ready" || session.status === "error";
   const canTranscribe =
     session.status === "recorded" && !isTranscribing;
-  const canRefine =
-    session.status === "completed" && session.rawTranscript && !isRefining && !session.refinedTranscript;
-  const canSummarize =
-    session.status === "completed" && session.refinedTranscript && !isSummarizing && !session.summary;
+  const canRegenerate =
+    session.status === "completed" && session.refinedTranscript && !isSummarizing && !isProcessing && !session.summary;
 
   // Determine which transcript to show
   const displaySegments = session.transcript && session.transcript.length > 0
@@ -453,28 +472,26 @@ bash ./models/download-ggml-model.sh medium`}
         />
       )}
 
-      {/* Refine Button */}
-      {canRefine && (
-        <button
-          onClick={startRefine}
-          disabled={isRefining}
-          className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-full font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
-        >
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <path d="M4 4l3 3-3 3M9 13h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          AIで整文する
-        </button>
-      )}
-
-      {isRefining && (
+      {/* Processing Pipeline Status */}
+      {isProcessing && (
         <div className="bg-card rounded-[16px] border border-blue-200 p-6 text-center">
           <div className="animate-spin w-8 h-8 border-2 border-blue-200 border-t-blue-600 rounded-full mx-auto mb-3" />
           <p className="text-sm text-text-secondary">
-            Claude AIがトランスクリプトを整文中...
+            {session.refinedTranscript
+              ? "Claude AIが議事録を生成中..."
+              : "Claude AIがトランスクリプトを整文中..."}
           </p>
           <p className="text-xs text-text-muted mt-1">
-            内容を落とさず、読みやすい文章に整えています
+            整文 → 議事録生成を自動で実行しています
+          </p>
+        </div>
+      )}
+
+      {isSummarizing && (
+        <div className="bg-card rounded-[16px] border border-border-light p-6 text-center">
+          <div className="animate-spin w-8 h-8 border-2 border-accent-bark/20 border-t-accent-bark rounded-full mx-auto mb-3" />
+          <p className="text-sm text-text-secondary">
+            Claude AIが議事録を再生成中...
           </p>
         </div>
       )}
@@ -482,41 +499,68 @@ bash ./models/download-ggml-model.sh medium`}
       {/* Refined Transcript */}
       {session.refinedTranscript && (
         <div className="bg-card rounded-[16px] border border-blue-100 p-6">
-          <h3 className="font-[family-name:var(--font-nunito)] font-bold text-text-primary mb-3 flex items-center gap-2">
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <path d="M4 4l3 3-3 3M9 13h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            整文済みトランスクリプト
-          </h3>
-          <div className="max-h-96 overflow-y-auto">
-            <p className="text-sm text-text-primary whitespace-pre-wrap leading-relaxed">
-              {session.refinedTranscript}
-            </p>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-[family-name:var(--font-nunito)] font-bold text-text-primary flex items-center gap-2">
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <path d="M4 4l3 3-3 3M9 13h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              整文済みトランスクリプト
+            </h3>
+            {!editingRefined && !isProcessing && !isSummarizing && (
+              <button
+                onClick={() => {
+                  setEditedText(session.refinedTranscript || "");
+                  setEditingRefined(true);
+                }}
+                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+              >
+                編集・修正する
+              </button>
+            )}
           </div>
+          {editingRefined ? (
+            <div className="space-y-3">
+              <textarea
+                value={editedText}
+                onChange={(e) => setEditedText(e.target.value)}
+                className="w-full h-96 px-3 py-2 text-sm border border-border-light rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 leading-relaxed resize-y"
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={saveRefinedEdit}
+                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                >
+                  保存して議事録を再生成
+                </button>
+                <button
+                  onClick={() => setEditingRefined(false)}
+                  className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
+                >
+                  キャンセル
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="max-h-96 overflow-y-auto">
+              <p className="text-sm text-text-primary whitespace-pre-wrap leading-relaxed">
+                {session.refinedTranscript}
+              </p>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Summarize Button */}
-      {canSummarize && (
+      {/* Regenerate button (when refined transcript edited and summary cleared) */}
+      {canRegenerate && (
         <button
-          onClick={startSummarize}
-          disabled={isSummarizing}
-          className="flex items-center gap-2 px-6 py-3 bg-accent-bark text-white rounded-full font-medium hover:bg-accent-bark/90 transition-colors disabled:opacity-50"
+          onClick={startRegenerate}
+          className="flex items-center gap-2 px-6 py-3 bg-accent-bark text-white rounded-full font-medium hover:bg-accent-bark/90 transition-colors"
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
             <path d="M4 5h10M4 9h7M4 13h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
-          AIで議事録を生成
+          AIで議事録を再生成
         </button>
-      )}
-
-      {isSummarizing && (
-        <div className="bg-card rounded-[16px] border border-border-light p-6 text-center">
-          <div className="animate-spin w-8 h-8 border-2 border-accent-bark/20 border-t-accent-bark rounded-full mx-auto mb-3" />
-          <p className="text-sm text-text-secondary">
-            Claude AIが議事録を生成中...
-          </p>
-        </div>
       )}
 
       {/* Summary */}

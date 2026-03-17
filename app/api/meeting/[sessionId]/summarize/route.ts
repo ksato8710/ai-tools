@@ -1,49 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession, saveSession } from "@/lib/meeting-store";
-import { spawn } from "child_process";
-
-function callClaude(prompt: string): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
-    const proc = spawn(
-      "claude",
-      ["-p", "--model", "sonnet", "--output-format", "json"],
-      {
-        env: { ...process.env },
-        stdio: ["pipe", "pipe", "pipe"],
-        timeout: 600_000,
-      }
-    );
-
-    proc.stdin.end(prompt);
-
-    let stdout = "";
-    let stderr = "";
-
-    proc.stdout.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString();
-    });
-
-    proc.stderr.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString();
-    });
-
-    proc.on("close", (code) => {
-      if (code !== 0) {
-        reject(new Error(`Claude exited with code ${code}: ${stderr || stdout}`));
-        return;
-      }
-      try {
-        const parsed = JSON.parse(stdout);
-        resolve(parsed.result || "");
-      } catch {
-        // If not JSON, return raw stdout
-        resolve(stdout);
-      }
-    });
-
-    proc.on("error", (err) => reject(err));
-  });
-}
+import { callClaude } from "@/lib/meeting-claude";
 
 export async function POST(
   _req: Request,
@@ -83,8 +40,7 @@ JSONのみを出力してください。`;
       return NextResponse.json({ error: "Failed to parse summary" }, { status: 500 });
     }
 
-    const summary = JSON.parse(jsonMatch[0]);
-    session.summary = summary;
+    session.summary = JSON.parse(jsonMatch[0]);
     session.updatedAt = new Date().toISOString();
     await saveSession(session);
 

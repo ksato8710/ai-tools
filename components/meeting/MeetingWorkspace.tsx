@@ -13,8 +13,10 @@ export default function MeetingWorkspace() {
   const [loading, setLoading] = useState(true);
 
   // Track in-progress background operations (survive session switching)
-  const [busySessions, setBusySessions] = useState<Record<string, "transcribing" | "refining" | "summarizing">>({});
+  type BusyState = "transcribing" | "processing" | "summarizing";
+  const [busySessions, setBusySessions] = useState<Record<string, BusyState>>({});
   const handleSessionUpdateRef = useRef<(updated: MeetingSession) => void>(() => {});
+  const startBackgroundTaskRef = useRef<(id: string, type: BusyState, endpoint: string) => void>(() => {});
 
   const fetchSessions = useCallback(async () => {
     try {
@@ -82,7 +84,7 @@ export default function MeetingWorkspace() {
 
   const startBackgroundTask = useCallback((
     sessionId: string,
-    taskType: "transcribing" | "refining" | "summarizing",
+    taskType: BusyState,
     endpoint: string
   ) => {
     setBusySessions((prev) => ({ ...prev, [sessionId]: taskType }));
@@ -91,17 +93,31 @@ export default function MeetingWorkspace() {
         const data = await res.json();
         if (res.ok) {
           handleSessionUpdateRef.current(data);
+          // Auto-chain: transcription completed → start processing pipeline
+          if (taskType === "transcribing" && data.rawTranscript) {
+            startBackgroundTaskRef.current(
+              sessionId,
+              "processing",
+              `/api/meeting/${sessionId}/process`
+            );
+            return; // Don't clear busy state — processing takes over
+          }
         }
       })
       .catch(() => {})
       .finally(() => {
         setBusySessions((prev) => {
-          const next = { ...prev };
-          delete next[sessionId];
-          return next;
+          // Only clear if not already replaced by a chained task
+          if (prev[sessionId] === taskType) {
+            const next = { ...prev };
+            delete next[sessionId];
+            return next;
+          }
+          return prev;
         });
       });
   }, []);
+  startBackgroundTaskRef.current = startBackgroundTask;
 
   if (loading) {
     return (
@@ -162,7 +178,7 @@ export default function MeetingWorkspace() {
               key={selectedSession.id}
               session={selectedSession}
               onUpdate={handleSessionUpdate}
-              busyState={busySessions[selectedSession.id] as "transcribing" | "refining" | "summarizing" | undefined}
+              busyState={busySessions[selectedSession.id]}
               onStartTask={startBackgroundTask}
             />
           </div>
