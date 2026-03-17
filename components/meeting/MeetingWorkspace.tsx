@@ -15,8 +15,14 @@ export default function MeetingWorkspace() {
   const fetchSessions = useCallback(async () => {
     try {
       const res = await fetch("/api/meeting");
-      const data = await res.json();
+      const data: MeetingSession[] = await res.json();
       setSessions(data);
+      // Sync selectedSession with latest data from server
+      setSelectedSession((prev) => {
+        if (!prev) return prev;
+        const fresh = data.find((s) => s.id === prev.id);
+        return fresh ?? prev;
+      });
     } catch {
       // ignore
     } finally {
@@ -26,6 +32,9 @@ export default function MeetingWorkspace() {
 
   useEffect(() => {
     fetchSessions();
+    // Poll for updates every 10 seconds (picks up background task completions)
+    const interval = setInterval(fetchSessions, 10_000);
+    return () => clearInterval(interval);
   }, [fetchSessions]);
 
   const createSession = async () => {
