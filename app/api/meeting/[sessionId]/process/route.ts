@@ -16,12 +16,22 @@ export async function POST(
     return NextResponse.json({ error: "No transcript available" }, { status: 400 });
   }
 
+  if ((!session.duration || session.duration <= 0) && session.transcript?.length) {
+    const lastEnd = session.transcript[session.transcript.length - 1]?.end;
+    if (lastEnd) {
+      const [hours, minutes, seconds] = lastEnd.split(":");
+      session.duration = Number(hours) * 3600 + Number(minutes) * 60 + Number(seconds);
+    }
+  }
+
   try {
+    session.status = "processing";
+    delete session.errorMessage;
+    session.updatedAt = new Date().toISOString();
+    await saveSession(session);
+
     // ── Step 1: Refine ──────────────────────────────────────────────────
     if (!session.refinedTranscript) {
-      session.updatedAt = new Date().toISOString();
-      await saveSession(session); // save "processing" state for polling
-
       const refinePrompt = `あなたは会議の文字起こしを整文するエディターです。以下の音声認識テキストを、読みやすい文章に整えてください。
 
 ## ルール
@@ -38,7 +48,7 @@ ${session.rawTranscript}
 
 整文した本文のみを出力してください。`;
 
-      session.refinedTranscript = await callClaude(refinePrompt);
+      session.refinedTranscript = await callClaude(refinePrompt, "sonnet", 1_800_000);
       session.updatedAt = new Date().toISOString();
       await saveSession(session); // polling picks up refinedTranscript
     }
@@ -68,6 +78,8 @@ JSONのみを出力してください。`;
     }
 
     session.summary = JSON.parse(jsonMatch[0]);
+    session.status = "completed";
+    delete session.errorMessage;
     session.updatedAt = new Date().toISOString();
     await saveSession(session);
 
@@ -87,8 +99,13 @@ JSONのみを出力してください。`;
 
     return NextResponse.json(session);
   } catch (err) {
+    session.status = "error";
+    session.errorMessage = err instanceof Error ? err.message : "Processing failed";
+    session.updatedAt = new Date().toISOString();
+    await saveSession(session);
+
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Processing failed" },
+      { error: session.errorMessage },
       { status: 500 }
     );
   }

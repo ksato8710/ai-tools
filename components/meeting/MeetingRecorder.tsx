@@ -26,8 +26,8 @@ export default function MeetingRecorder({ session, onUpdate, busyState, onStartT
   const [editingRefined, setEditingRefined] = useState(false);
   const [editedText, setEditedText] = useState("");
 
-  const isTranscribing = busyState === "transcribing";
-  const isProcessing = busyState === "processing";
+  const isTranscribing = busyState === "transcribing" || session.status === "transcribing";
+  const isProcessing = busyState === "processing" || session.status === "processing";
   const isSummarizing = busyState === "summarizing";
 
   // Keep a stable ref to onUpdate for real-time chunk transcription
@@ -45,6 +45,7 @@ export default function MeetingRecorder({ session, onUpdate, busyState, onStartT
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef<number>(0);
   const pausedTimeRef = useRef<number>(0);
+  const elapsedRef = useRef(0);
 
   // Check whisper status on mount
   useEffect(() => {
@@ -99,11 +100,35 @@ export default function MeetingRecorder({ session, onUpdate, busyState, onStartT
     }
   }, [isChunkTranscribing, session.id]);
 
+  const uploadAudio = useCallback(async (blob: Blob) => {
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("audio", new File([blob], "recording.webm", { type: "audio/webm" }));
+      formData.append("duration", elapsedRef.current.toString());
+
+      const res = await fetch(`/api/meeting/${session.id}/upload`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error("Upload failed");
+      const updated = await res.json();
+      onUpdate(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "アップロードに失敗しました");
+    } finally {
+      setIsUploading(false);
+    }
+  }, [onUpdate, session.id]);
+
   const startRecording = useCallback(async () => {
     try {
       setError(null);
       setLiveSegments([]);
       liveTranscribedUpTo.current = 0;
+      elapsedRef.current = 0;
+      setElapsed(0);
 
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -154,9 +179,9 @@ export default function MeetingRecorder({ session, onUpdate, busyState, onStartT
 
       // Timer
       timerRef.current = setInterval(() => {
-        setElapsed(
-          Math.floor((Date.now() - startTimeRef.current - pausedTimeRef.current) / 1000)
-        );
+        const nextElapsed = Math.floor((Date.now() - startTimeRef.current - pausedTimeRef.current) / 1000);
+        elapsedRef.current = nextElapsed;
+        setElapsed(nextElapsed);
       }, 200);
 
       // Start real-time transcription timer (first after REALTIME_INTERVAL)
@@ -170,7 +195,7 @@ export default function MeetingRecorder({ session, onUpdate, busyState, onStartT
           : "録音を開始できませんでした"
       );
     }
-  }, [session.id, transcribeChunk]);
+  }, [session.id, transcribeChunk, uploadAudio]);
 
   const pauseRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
@@ -187,6 +212,11 @@ export default function MeetingRecorder({ session, onUpdate, busyState, onStartT
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
+      const finalElapsed = isPaused
+        ? elapsedRef.current
+        : Math.floor((Date.now() - startTimeRef.current - pausedTimeRef.current) / 1000);
+      elapsedRef.current = finalElapsed;
+      setElapsed(finalElapsed);
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       setIsPaused(false);
@@ -195,29 +225,7 @@ export default function MeetingRecorder({ session, onUpdate, busyState, onStartT
         timerRef.current = null;
       }
     }
-  }, [isRecording]);
-
-  const uploadAudio = async (blob: Blob) => {
-    setIsUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append("audio", new File([blob], "recording.webm", { type: "audio/webm" }));
-      formData.append("duration", elapsed.toString());
-
-      const res = await fetch(`/api/meeting/${session.id}/upload`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!res.ok) throw new Error("Upload failed");
-      const updated = await res.json();
-      onUpdate(updated);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "アップロードに失敗しました");
-    } finally {
-      setIsUploading(false);
-    }
-  };
+  }, [isPaused, isRecording]);
 
   const startTranscribe = () => {
     setError(null);
@@ -261,11 +269,18 @@ export default function MeetingRecorder({ session, onUpdate, busyState, onStartT
     return `${m}:${sec.toString().padStart(2, "0")}`;
   };
 
-  const canRecord = session.status === "ready" || session.status === "error";
+  const canRecord = session.status === "ready";
   const canTranscribe =
     session.status === "recorded" && !isTranscribing;
+  const canRetryProcessing =
+    !!session.rawTranscript &&
+    !session.summary &&
+    !isTranscribing &&
+    !isProcessing &&
+    !isSummarizing;
   const canRegenerate =
     session.status === "completed" && session.refinedTranscript && !isSummarizing && !isProcessing && !session.summary;
+  const displayError = error || session.errorMessage;
 
   // Determine which transcript to show
   const displaySegments = session.transcript && session.transcript.length > 0
@@ -452,6 +467,23 @@ bash ./models/download-ggml-model.sh medium`}
         </div>
       )}
 
+      {canRetryProcessing && !canTranscribe && (
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => onStartTask(session.id, "processing", `/api/meeting/${session.id}/process`)}
+            className="flex items-center gap-2 px-6 py-3 bg-accent-bark text-white rounded-full font-medium hover:bg-accent-bark/90 transition-colors"
+          >
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <path d="M15 9a6 6 0 11-1.76-4.24L15 6.5M15 3.5v3h-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            AI整文・議事録生成を再試行
+          </button>
+          <span className="text-xs text-text-muted">
+            整文または議事録生成が未完了です
+          </span>
+        </div>
+      )}
+
       {isTranscribing && (
         <div className="bg-card rounded-[16px] border border-border-light p-6 text-center">
           <div className="animate-spin w-8 h-8 border-2 border-accent-leaf/20 border-t-accent-leaf rounded-full mx-auto mb-3" />
@@ -567,9 +599,9 @@ bash ./models/download-ggml-model.sh medium`}
       {session.summary && <MeetingSummary summary={session.summary} />}
 
       {/* Error Display */}
-      {error && (
+      {displayError && (
         <div className="bg-red-50 border border-red-200 rounded-[12px] p-4">
-          <p className="text-sm text-red-700 whitespace-pre-wrap">{error}</p>
+          <p className="text-sm text-red-700 whitespace-pre-wrap">{displayError}</p>
           <button
             onClick={() => setError(null)}
             className="mt-2 text-xs text-red-500 hover:text-red-700"

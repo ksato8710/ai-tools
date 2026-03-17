@@ -1,7 +1,7 @@
 export interface MeetingSession {
   id: string;
   title: string;
-  status: "ready" | "recording" | "recorded" | "transcribing" | "completed" | "error";
+  status: "ready" | "recording" | "recorded" | "transcribing" | "processing" | "completed" | "error";
   audioPath?: string;
   audioFileName?: string;
   duration?: number; // seconds

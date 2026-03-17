@@ -1,6 +1,10 @@
 import { spawn } from "child_process";
 
-export function callClaude(prompt: string, model = "sonnet"): Promise<string> {
+export function callClaude(
+  prompt: string,
+  model = "sonnet",
+  timeoutMs = 600_000
+): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     const proc = spawn(
       "claude",
@@ -8,7 +12,7 @@ export function callClaude(prompt: string, model = "sonnet"): Promise<string> {
       {
         env: { ...process.env },
         stdio: ["pipe", "pipe", "pipe"],
-        timeout: 600_000,
+        timeout: timeoutMs,
       }
     );
 

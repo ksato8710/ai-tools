@@ -133,6 +133,11 @@ function parseSrtOutput(srtContent: string): TranscriptSegment[] {
   return segments;
 }
 
+function timestampToSeconds(value: string): number {
+  const [hours, minutes, seconds] = value.split(":");
+  return Number(hours) * 3600 + Number(minutes) * 60 + Number(seconds);
+}
+
 export async function POST(
   _req: Request,
   { params }: { params: Promise<{ sessionId: string }> }
@@ -211,7 +216,11 @@ export async function POST(
 
     session.transcript = segments;
     session.rawTranscript = rawTranscript;
-    session.status = "completed";
+    if ((!session.duration || session.duration <= 0) && segments.length > 0) {
+      session.duration = timestampToSeconds(segments[segments.length - 1].end);
+    }
+    session.status = "recorded";
+    delete session.errorMessage;
     session.updatedAt = new Date().toISOString();
 
     // Generate a meaningful title from the transcript

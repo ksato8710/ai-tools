@@ -26,6 +26,8 @@ function statusLabel(status: MeetingSession["status"]): { text: string; color: s
       return { text: "録音済み", color: "bg-blue-100 text-blue-600" };
     case "transcribing":
       return { text: "文字起こし中", color: "bg-yellow-100 text-yellow-700" };
+    case "processing":
+      return { text: "AI処理中", color: "bg-indigo-100 text-indigo-700" };
     case "completed":
       return { text: "完了", color: "bg-green-100 text-green-700" };
     case "error":

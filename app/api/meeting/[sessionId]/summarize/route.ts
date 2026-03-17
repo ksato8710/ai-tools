@@ -18,6 +18,11 @@ export async function POST(
   }
 
   try {
+    session.status = "processing";
+    delete session.errorMessage;
+    session.updatedAt = new Date().toISOString();
+    await saveSession(session);
+
     const sourceLabel = session.refinedTranscript ? "整文済みトランスクリプト" : "音声トランスクリプト";
     const prompt = `以下は会議の${sourceLabel}です。議事録として要約してください。
 
@@ -41,13 +46,20 @@ JSONのみを出力してください。`;
     }
 
     session.summary = JSON.parse(jsonMatch[0]);
+    session.status = "completed";
+    delete session.errorMessage;
     session.updatedAt = new Date().toISOString();
     await saveSession(session);
 
     return NextResponse.json(session);
   } catch (err) {
+    session.status = "error";
+    session.errorMessage = err instanceof Error ? err.message : "Summary failed";
+    session.updatedAt = new Date().toISOString();
+    await saveSession(session);
+
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Summary failed" },
+      { error: session.errorMessage },
       { status: 500 }
     );
   }
