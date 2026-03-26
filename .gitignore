@@ -63,3 +63,4 @@ next-env.d.ts
 
 # python venv
 .venv/
+data/mlx-whisper-models/
