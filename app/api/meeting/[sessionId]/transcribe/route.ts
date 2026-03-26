@@ -45,60 +45,14 @@ function generateTitle(transcript: string): Promise<string> {
   });
 }
 
-async function findWhisperCli(): Promise<string | null> {
-  const candidates = [
-    "whisper-cli",
-    "/usr/local/bin/whisper-cli",
-    "/opt/homebrew/bin/whisper-cli",
-  ];
+const MLX_MODEL = "mlx-community/whisper-small-mlx";
 
-  // Also check common build locations
-  const homeDir = process.env.HOME || "/Users";
-  candidates.push(
-    path.join(homeDir, "whisper.cpp/build/bin/whisper-cli"),
-    path.join(homeDir, "Dev/whisper.cpp/build/bin/whisper-cli"),
-  );
-
-  for (const cmd of candidates) {
-    try {
-      await execAsync(`${cmd} --help 2>/dev/null`);
-      return cmd;
-    } catch {
-      // not found
-    }
-  }
-
-  // Try which
-  try {
-    const { stdout } = await execAsync("which whisper-cli");
-    return stdout.trim();
-  } catch {
-    return null;
-  }
+function getMlxTranscribeScript(): string {
+  return path.join(process.cwd(), "scripts", "mlx-transcribe.py");
 }
 
-async function findWhisperModel(): Promise<string | null> {
-  const homeDir = process.env.HOME || "/Users";
-  const candidates = [
-    path.join(homeDir, "whisper.cpp/models/ggml-medium.bin"),
-    path.join(homeDir, "whisper.cpp/models/ggml-large-v3.bin"),
-    path.join(homeDir, "whisper.cpp/models/ggml-small.bin"),
-    path.join(homeDir, "whisper.cpp/models/ggml-base.bin"),
-    path.join(homeDir, "Dev/whisper.cpp/models/ggml-medium.bin"),
-    path.join(homeDir, "Dev/whisper.cpp/models/ggml-large-v3.bin"),
-    "/usr/local/share/whisper/models/ggml-medium.bin",
-    "/opt/homebrew/share/whisper/models/ggml-medium.bin",
-  ];
-
-  for (const p of candidates) {
-    try {
-      await fs.access(p);
-      return p;
-    } catch {
-      // not found
-    }
-  }
-  return null;
+function getMlxPython(): string {
+  return path.join(process.cwd(), ".venv", "bin", "python3");
 }
 
 async function convertToWav(inputPath: string, outputPath: string): Promise<void> {
@@ -152,29 +106,19 @@ export async function POST(
     return NextResponse.json({ error: "No audio file" }, { status: 400 });
   }
 
-  // Find whisper-cli
-  const whisperCli = await findWhisperCli();
-  if (!whisperCli) {
+  // Verify mlx-whisper setup
+  const mlxPython = getMlxPython();
+  const mlxScript = getMlxTranscribeScript();
+  try {
+    await fs.access(mlxPython);
+    await fs.access(mlxScript);
+  } catch {
     return NextResponse.json(
       {
-        error: "whisper-cli not found",
+        error: "mlx-whisper not configured",
         setup: [
-          "git clone https://github.com/ggml-org/whisper.cpp ~/whisper.cpp",
-          "cd ~/whisper.cpp && cmake -B build -DWHISPER_METAL=ON && cmake --build build -j",
-          "bash ./models/download-ggml-model.sh medium",
-        ],
-      },
-      { status: 500 }
-    );
-  }
-
-  const model = await findWhisperModel();
-  if (!model) {
-    return NextResponse.json(
-      {
-        error: "Whisper model not found",
-        setup: [
-          "cd ~/whisper.cpp && bash ./models/download-ggml-model.sh medium",
+          "cd ai-tools && python3 -m venv .venv",
+          "source .venv/bin/activate && pip install mlx-whisper",
         ],
       },
       { status: 500 }
@@ -202,15 +146,15 @@ export async function POST(
     const whisperPrompt = buildWhisperPrompt(dictionary);
     const promptArg = whisperPrompt ? ` --prompt "${whisperPrompt.replace(/"/g, '\\"')}"` : "";
 
-    // Run whisper-cli
-    const srtPath = path.join(dir, "transcript");
+    // Run mlx-whisper
+    const srtPath = path.join(dir, "transcript.srt");
     await execAsync(
-      `"${whisperCli}" -m "${model}" -f "${audioFile}" -l ja -osrt -of "${srtPath}"${promptArg}`,
+      `"${mlxPython}" "${mlxScript}" "${audioFile}" "${srtPath}" --language ja --model "${MLX_MODEL}"${promptArg}`,
       { timeout: 600000 } // 10 min timeout
     );
 
     // Read SRT output
-    const srtContent = await fs.readFile(`${srtPath}.srt`, "utf-8");
+    const srtContent = await fs.readFile(srtPath, "utf-8");
     const segments = parseSrtOutput(srtContent);
     const rawTranscript = segments.map((s) => s.text).join("\n");
 

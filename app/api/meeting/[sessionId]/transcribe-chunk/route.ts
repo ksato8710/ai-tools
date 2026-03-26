@@ -8,45 +8,14 @@ import path from "path";
 
 const execAsync = promisify(exec);
 
-async function findWhisperCli(): Promise<string | null> {
-  const homeDir = process.env.HOME || "/Users";
-  const candidates = [
-    "whisper-cli",
-    path.join(homeDir, "whisper.cpp/build/bin/whisper-cli"),
-    path.join(homeDir, "Dev/whisper.cpp/build/bin/whisper-cli"),
-    "/opt/homebrew/bin/whisper-cli",
-    "/usr/local/bin/whisper-cli",
-  ];
-  for (const cmd of candidates) {
-    try {
-      await execAsync(`"${cmd}" --help 2>/dev/null`);
-      return cmd;
-    } catch { /* not found */ }
-  }
-  try {
-    const { stdout } = await execAsync("which whisper-cli");
-    return stdout.trim();
-  } catch {
-    return null;
-  }
+const MLX_MODEL = "mlx-community/whisper-small-mlx";
+
+function getMlxTranscribeScript(): string {
+  return path.join(process.cwd(), "scripts", "mlx-transcribe.py");
 }
 
-async function findWhisperModel(): Promise<string | null> {
-  const homeDir = process.env.HOME || "/Users";
-  const candidates = [
-    path.join(homeDir, "whisper.cpp/models/ggml-medium.bin"),
-    path.join(homeDir, "whisper.cpp/models/ggml-large-v3.bin"),
-    path.join(homeDir, "whisper.cpp/models/ggml-small.bin"),
-    path.join(homeDir, "whisper.cpp/models/ggml-base.bin"),
-    path.join(homeDir, "Dev/whisper.cpp/models/ggml-medium.bin"),
-  ];
-  for (const p of candidates) {
-    try {
-      await fs.access(p);
-      return p;
-    } catch { /* not found */ }
-  }
-  return null;
+function getMlxPython(): string {
+  return path.join(process.cwd(), ".venv", "bin", "python3");
 }
 
 function parseSrtContent(srtContent: string, offsetSec: number): TranscriptSegment[] {
@@ -101,10 +70,13 @@ export async function POST(
     return NextResponse.json({ error: "No audio" }, { status: 400 });
   }
 
-  const whisperCli = await findWhisperCli();
-  const model = await findWhisperModel();
-  if (!whisperCli || !model) {
-    return NextResponse.json({ error: "Whisper not available" }, { status: 500 });
+  const mlxPython = getMlxPython();
+  const mlxScript = getMlxTranscribeScript();
+  try {
+    await fs.access(mlxPython);
+    await fs.access(mlxScript);
+  } catch {
+    return NextResponse.json({ error: "mlx-whisper not configured" }, { status: 500 });
   }
 
   const dir = getSessionDir(sessionId);
@@ -137,13 +109,14 @@ export async function POST(
     const whisperPrompt = buildWhisperPrompt(dictionary);
     const promptArg = whisperPrompt ? ` --prompt "${whisperPrompt.replace(/"/g, '\\"')}"` : "";
 
-    // Run whisper on the chunk
+    // Run mlx-whisper on the chunk
+    const chunkSrtFile = `${chunkSrt}.srt`;
     await execAsync(
-      `"${whisperCli}" -m "${model}" -f "${chunkWav}" -l ja -osrt -of "${chunkSrt}"${promptArg}`,
+      `"${mlxPython}" "${mlxScript}" "${chunkWav}" "${chunkSrtFile}" --language ja --model "${MLX_MODEL}"${promptArg}`,
       { timeout: 120000 }
     );
 
-    const srtContent = await fs.readFile(`${chunkSrt}.srt`, "utf-8");
+    const srtContent = await fs.readFile(chunkSrtFile, "utf-8");
     const segments = parseSrtContent(srtContent, offset);
 
     return NextResponse.json({ segments });
